@@ -67,8 +67,8 @@ jobs:
       - name: Build packages
         run: yarn build
 
-      - name: Run tests from transpiled code
-        run: npx ocular-test dist
+      - name: Run release test suite
+        run: yarn test-ci
 
       - name: Configure DEV AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
