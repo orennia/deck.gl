@@ -2,29 +2,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
-import {Layer, project32, picking, log, UNIT} from '@deck.gl/core';
-import {SamplerProps, Texture} from '@luma.gl/core';
-import {Model, Geometry} from '@luma.gl/engine';
-
-import {iconUniforms, IconProps} from './icon-layer-uniforms';
-import vs from './icon-layer-vertex.glsl';
-import fs from './icon-layer-fragment.glsl';
-import IconManager from './icon-manager';
-
 import type {
-  LayerProps,
-  LayerDataSource,
   Accessor,
   AccessorFunction,
-  Position,
   Color,
-  Unit,
-  UpdateParameters,
+  DefaultProps,
   LayerContext,
-  DefaultProps
+  LayerDataSource,
+  LayerProps,
+  Position,
+  Unit,
+  UpdateParameters
 } from '@deck.gl/core';
-
-import type {UnpackedIcon, IconMapping, LoadIconErrorContext} from './icon-manager';
+import {Layer, log, picking, project32, UNIT} from '@deck.gl/core';
+import type {SamplerProps, Texture} from '@luma.gl/core';
+import {Geometry, Model} from '@luma.gl/engine';
+import fs from './icon-layer-fragment.glsl';
+import {type IconProps, iconUniforms} from './icon-layer-uniforms';
+import vs from './icon-layer-vertex.glsl';
+import type {IconMapping, LoadIconErrorContext, UnpackedIcon} from './icon-manager';
+import IconManager from './icon-manager';
 
 type _IconLayerProps<DataT> = {
   data: LayerDataSource<DataT>;
@@ -139,7 +136,11 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
   };
 
   getShaders() {
-    return super.getShaders({vs, fs, modules: [project32, picking, iconUniforms]});
+    return super.getShaders({
+      vs,
+      fs,
+      modules: [project32, picking, iconUniforms]
+    });
   }
 
   initializeState() {
@@ -215,22 +216,27 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
     const {iconAtlas, iconMapping, data, getIcon, textureParameters} = props;
     const {iconManager} = this.state;
 
-    if (typeof iconAtlas === 'string') {
-      return;
+    if (changeFlags.extensionsChanged || !this.state.model) {
+      this.state.model?.destroy();
+      this.state.model = this._getModel();
+      attributeManager!.invalidateAll();
     }
 
     // internalState is always defined during updateState
-    const prePacked = iconAtlas || this.internalState!.isAsyncPropLoading('iconAtlas');
+    const isIconAtlasLoading = this.internalState!.isAsyncPropLoading('iconAtlas');
+    const isIconMappingLoading = this.internalState!.isAsyncPropLoading('iconMapping');
+    const hasPrepackedConfig =
+      iconAtlas != null || iconMapping != null || isIconAtlasLoading || isIconMappingLoading;
     iconManager.setProps({
       loadOptions: props.loadOptions,
-      autoPacking: !prePacked,
-      iconAtlas,
-      iconMapping: prePacked ? (iconMapping as IconMapping) : null,
+      autoPacking: !hasPrepackedConfig,
+      iconAtlas: typeof iconAtlas === 'string' ? null : iconAtlas,
+      iconMapping: hasPrepackedConfig && typeof iconMapping !== 'string' ? iconMapping : null,
       textureParameters
     });
 
     // prepacked iconAtlas from user
-    if (prePacked) {
+    if (hasPrepackedConfig) {
       if (oldProps.iconMapping !== props.iconMapping) {
         attributeManager!.invalidate('getIcon');
       }
@@ -241,12 +247,6 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
     ) {
       // Auto packing - getIcon is expected to return an object
       iconManager.packIcons(data, getIcon as AccessorFunction<any, UnpackedIcon>);
-    }
-
-    if (changeFlags.extensionsChanged) {
-      this.state.model?.destroy();
-      this.state.model = this._getModel();
-      attributeManager!.invalidateAll();
     }
   }
   /* eslint-enable max-statements, complexity */

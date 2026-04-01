@@ -8,9 +8,11 @@ import test from 'tape-promise/tape';
 import {UNIT} from '@deck.gl/core';
 import {CollisionFilterExtension} from '@deck.gl/extensions';
 import {LabeledIconLayer} from '@deck.gl/layers';
-import {getLayerUniforms, testLayer} from '@deck.gl/test-utils';
+import {getLayerUniforms, testLayer, testLayerAsync} from '@deck.gl/test-utils';
+import {makeSpy} from '@probe.gl/test-utils';
 
 import * as FIXTURES from 'deck.gl-test/data';
+import IconManager from '../../../modules/layers/src/icon-layer/icon-manager';
 
 const iconAtlas = document.createElement('canvas');
 iconAtlas.width = 24;
@@ -257,5 +259,61 @@ test('LabeledIconLayer#default label alignment', t => {
   ];
 
   testLayer({Layer: LabeledIconLayer, testCases, onError: t.notOk});
+  t.end();
+});
+
+test('LabeledIconLayer#string iconAtlas creates icon model', async t => {
+  let updateCount = 0;
+
+  await testLayerAsync({
+    Layer: LabeledIconLayer,
+    testCases: [
+      {
+        props: {
+          ...SAMPLE_PROPS,
+          iconAtlas: './test/data/icon-atlas.png'
+        },
+        onAfterUpdate: ({subLayers}) => {
+          updateCount++;
+          const icons = subLayers.find(layer => layer.id.endsWith('icons'));
+          t.ok(icons, 'renders icons sublayer');
+          t.ok(icons?.state.model, 'icons sublayer creates its model before atlas load completes');
+        }
+      }
+    ],
+    onError: t.notOk
+  });
+
+  t.ok(updateCount >= 1, 'string atlas path triggers at least one update');
+  t.end();
+});
+
+test('LabeledIconLayer#async prepacked icon props do not auto-pack', async t => {
+  const packIconsSpy = makeSpy(IconManager.prototype, 'packIcons');
+
+  try {
+    await testLayerAsync({
+      Layer: LabeledIconLayer,
+      testCases: [
+        {
+          props: {
+            ...SAMPLE_PROPS,
+            iconAtlas: './test/data/icon-atlas.png',
+            iconMapping: './examples/layer-browser/data/icon-atlas.json'
+          },
+          onAfterUpdate: ({subLayers}) => {
+            const icons = subLayers.find(layer => layer.id.endsWith('icons'));
+            t.ok(icons, 'renders icons sublayer');
+            t.notOk(packIconsSpy.called, 'async prepacked icon props do not call packIcons');
+          }
+        }
+      ],
+      onError: t.notOk
+    });
+  } finally {
+    packIconsSpy.restore();
+  }
+
+  t.notOk(packIconsSpy.called, 'packIcons is never called for prepacked icon urls');
   t.end();
 });

@@ -147,6 +147,7 @@ export const POINT_LAYER = {
       textCollisionGroup: 'textCollisionGroup',
       textCollisionTestProps: 'textCollisionTestProps',
 
+      getPosition: 'getPosition',
       getIcon: 'getIcon',
       getIconAngle: 'getAngle',
       getIconColor: 'getColor',
