@@ -5,6 +5,7 @@
 import {CompositeLayer, Layer} from '@deck.gl/core';
 
 import IconLayer from '../icon-layer/icon-layer';
+import LabeledIconLayer from '../labeled-icon-layer/labeled-icon-layer';
 import LabeledScatterplotLayer from '../labeled-scatterplot-layer/labeled-scatterplot-layer';
 import ScatterplotLayer from '../scatterplot-layer/scatterplot-layer';
 import TextLayer from '../text-layer/text-layer';
@@ -95,6 +96,7 @@ export const POINT_LAYER = {
       iconAtlas: 'iconAtlas',
       iconMapping: 'iconMapping',
 
+      iconSizeBasis: 'sizeBasis',
       iconSizeMaxPixels: 'sizeMaxPixels',
       iconSizeMinPixels: 'sizeMinPixels',
       iconSizeScale: 'sizeScale',
@@ -107,6 +109,58 @@ export const POINT_LAYER = {
       getIconColor: 'getColor',
       getIconPixelOffset: 'getPixelOffset',
       getIconSize: 'getSize'
+    }
+  },
+  'icon-label': {
+    type: LabeledIconLayer,
+    props: {
+      iconAtlas: 'iconAtlas',
+      iconMapping: 'iconMapping',
+
+      iconSizeBasis: 'sizeBasis',
+      iconSizeMaxPixels: 'sizeMaxPixels',
+      iconSizeMinPixels: 'sizeMinPixels',
+      iconSizeScale: 'sizeScale',
+      iconSizeUnits: 'sizeUnits',
+      iconAlphaCutoff: 'alphaCutoff',
+      iconBillboard: 'iconBillboard',
+
+      textSizeMaxPixels: 'textSizeMaxPixels',
+      textSizeMinPixels: 'textSizeMinPixels',
+      textSizeScale: 'textSizeScale',
+      textSizeUnits: 'textSizeUnits',
+      textBackground: 'textBackground',
+      textBackgroundPadding: 'textBackgroundPadding',
+      textFontFamily: 'textFontFamily',
+      textFontWeight: 'textFontWeight',
+      textLineHeight: 'textLineHeight',
+      textMaxWidth: 'textMaxWidth',
+      textOutlineColor: 'textOutlineColor',
+      textOutlineWidth: 'textOutlineWidth',
+      textWordBreak: 'textWordBreak',
+      textCharacterSet: 'textCharacterSet',
+      textBillboard: 'textBillboard',
+      textFontSettings: 'textFontSettings',
+      textLabelPosition: 'labelPosition',
+      textLabelPadding: 'labelPadding',
+      textCollisionEnabled: 'textCollisionEnabled',
+      textCollisionGroup: 'textCollisionGroup',
+      textCollisionTestProps: 'textCollisionTestProps',
+
+      getIcon: 'getIcon',
+      getIconAngle: 'getAngle',
+      getIconColor: 'getColor',
+      getIconPixelOffset: 'getPixelOffset',
+      getIconSize: 'getSize',
+      getText: 'getText',
+      getTextAngle: 'getTextAngle',
+      getTextColor: 'getTextColor',
+      getTextPixelOffset: 'getTextPixelOffset',
+      getTextSize: 'getTextSize',
+      getTextBackgroundColor: 'getTextBackgroundColor',
+      getTextBorderColor: 'getTextBorderColor',
+      getTextBorderWidth: 'getTextBorderWidth',
+      getTextCollisionPriority: 'getTextCollisionPriority'
     }
   },
   text: {

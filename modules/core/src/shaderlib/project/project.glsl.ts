@@ -156,7 +156,7 @@ vec2 project_mercator_(vec2 lnglat) {
   float y = clamp(lnglat.y, -89.9, 89.9);
   return vec2(
     radians(x) + PI,
-    PI + log(tan_fp32(PI * 0.25 + radians(y) * 0.5))
+    PI + log(tan(PI * 0.25 + radians(y) * 0.5))
   ) * WORLD_SCALE;
 }
 

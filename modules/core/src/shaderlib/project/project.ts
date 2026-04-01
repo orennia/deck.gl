@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
-import {fp32, ShaderModule} from '@luma.gl/shadertools';
+import type {ShaderModule} from '@luma.gl/shadertools';
 import geometry from '../misc/geometry';
 import {getUniformsFromViewport} from './viewport-uniforms';
 import {projectWGSL} from './project.wgsl';
@@ -10,18 +10,18 @@ import {projectGLSL} from './project.glsl';
 
 import type {ProjectProps, ProjectUniforms} from './viewport-uniforms';
 
-const INITIAL_MODULE_OPTIONS = {};
+const INITIAL_MODULE_OPTIONS: Partial<ProjectProps> = {};
 
-function getUniforms(opts: ProjectProps | {} = INITIAL_MODULE_OPTIONS) {
-  if ('viewport' in opts) {
-    return getUniformsFromViewport(opts);
+function getUniforms(opts: Partial<ProjectProps> = INITIAL_MODULE_OPTIONS) {
+  if ('viewport' in opts && opts.viewport) {
+    return getUniformsFromViewport(opts as ProjectProps);
   }
   return {};
 }
 
 export default {
   name: 'project',
-  dependencies: [fp32, geometry],
+  dependencies: [geometry],
   source: projectWGSL,
   vs: projectGLSL,
   getUniforms,
@@ -44,5 +44,5 @@ export default {
     commonOrigin: 'vec3<f32>',
     pseudoMeters: 'f32'
   }
-  // @ts-ignore TODO v9.1
-} as const satisfies ShaderModule<ProjectProps, ProjectUniforms, {}>;
+  // @ts-expect-error TODO v9.1
+} as const satisfies ShaderModule<ProjectProps, ProjectUniforms, Record<string, never>>;

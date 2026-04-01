@@ -56,6 +56,7 @@ export type _GeoJsonLayerProps<FeaturePropertiesT> = {
    *  * `'circle'`
    *  * `'circle-label'`
    *  * `'icon'`
+   *  * `'icon-label'`
    *  * `'text'`
    *
    * @default 'circle'
@@ -251,6 +252,7 @@ type _GeojsonLayerIconPointProps<FeaturePropertiesT> = {
   getIconColor?: Accessor<Feature<Geometry, FeaturePropertiesT>, Color>;
   getIconAngle?: Accessor<Feature<Geometry, FeaturePropertiesT>, number>;
   getIconPixelOffset?: Accessor<Feature<Geometry, FeaturePropertiesT>, number[]>;
+  iconSizeBasis?: 'height' | 'width';
   iconSizeUnits?: Unit;
   iconSizeScale?: number;
   iconSizeMinPixels?: number;
@@ -301,6 +303,7 @@ const defaultProps: DefaultProps<GeoJsonLayerProps> = {
   ...getDefaultProps(POINT_LAYER.circle),
   ...getDefaultProps(POINT_LAYER['circle-label']),
   ...getDefaultProps(POINT_LAYER.icon),
+  ...getDefaultProps(POINT_LAYER['icon-label']),
   ...getDefaultProps(POINT_LAYER.text),
   ...getDefaultProps(LINE_LAYER),
   ...getDefaultProps(POLYGON_LAYER),
@@ -425,7 +428,8 @@ export default class GeoJsonLayer<
     if (
       index >= 0 &&
       (sourceLayer!.id.startsWith(`${this.id}-points-text`) ||
-        sourceLayer!.id.startsWith(`${this.id}-points-circle-label`)) &&
+        sourceLayer!.id.startsWith(`${this.id}-points-circle-label`) ||
+        sourceLayer!.id.startsWith(`${this.id}-points-icon-label`)) &&
       this.state.binary
     ) {
       info.index = (this.props.data as BinaryFeatureCollection).points!.globalFeatureIds.value[
@@ -547,7 +551,7 @@ export default class GeoJsonLayer<
         const forwardedProps = forwardProps(this, PointLayerMapping.props);
         let pointsLayerProps = layerProps.points;
 
-        if ((type === 'text' || type === 'circle-label') && binary) {
+        if ((type === 'text' || type === 'circle-label' || type === 'icon-label') && binary) {
           // Picking colors are per-point but for text per-character are required
           // getPickingInfo() maps back to the correct index
           // eslint-disable-next-line @typescript-eslint/no-unused-vars

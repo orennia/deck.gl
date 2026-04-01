@@ -11,6 +11,7 @@ import {
   GeoJsonLayer,
   GridCellLayer,
   IconLayer,
+  LabeledIconLayer,
   LabeledScatterplotLayer,
   LineLayer,
   PathLayer,
@@ -119,6 +120,36 @@ export const LabeledScatterplotLayerDemo = makeLayerDemo({
     getBorderColor: [255, 140, 0, 255],
     getBorderWidth: 1,
     backgroundPadding: [8, 4]
+  }`
+});
+
+export const LabeledIconLayerDemo = makeLayerDemo({
+  Layer: LabeledIconLayer,
+  getTooltip: '({object}) => object && `${object.name}\\n${object.address}`',
+  props: `{
+    data: '${DATA_URI}/bart-stations.json',
+    pickable: true,
+    iconAtlas: '${DATA_URI}/icon-atlas.png',
+    iconMapping: '${DATA_URI}/icon-atlas.json',
+    getPosition: d => d.coordinates,
+    getIcon: d => 'marker',
+    getColor: [255, 140, 0],
+    getSize: 1,
+    sizeScale: 18,
+    sizeMinPixels: 18,
+    sizeMaxPixels: 18,
+    getText: d => d.name,
+    getTextSize: 1,
+    textSizeScale: 14,
+    textSizeMinPixels: 14,
+    textSizeMaxPixels: 14,
+    labelPosition: 'top',
+    labelPadding: 6,
+    textBackground: true,
+    getTextBackgroundColor: [255, 255, 255, 230],
+    getTextBorderColor: [255, 140, 0, 255],
+    getTextBorderWidth: 1,
+    textBackgroundPadding: [8, 4]
   }`
 });
 

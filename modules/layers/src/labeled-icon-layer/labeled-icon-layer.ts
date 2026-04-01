@@ -4,7 +4,7 @@
 
 import {CompositeLayer, Layer, UNIT, picking, project32} from '@deck.gl/core';
 
-import ScatterplotLayer from '../scatterplot-layer/scatterplot-layer';
+import IconLayer from '../icon-layer/icon-layer';
 import TextLayer from '../text-layer/text-layer';
 import MultiIconLayer from '../text-layer/multi-icon-layer/multi-icon-layer';
 import TextBackgroundLayer from '../text-layer/text-background-layer/text-background-layer';
@@ -14,40 +14,78 @@ import {textUniforms} from '../text-layer/text-uniforms';
 import textBackgroundFs from '../text-layer/text-background-layer/text-background-layer-fragment.glsl';
 import multiIconFs from '../text-layer/multi-icon-layer/multi-icon-layer-fragment.glsl';
 import {transformParagraph} from '../text-layer/utils';
-import {scatterplotUniforms} from '../scatterplot-layer/scatterplot-layer-uniforms';
-import labeledScatterplotTextBackgroundVs from './labeled-scatterplot-text-background-layer-vertex.glsl';
-import labeledScatterplotCollisionTextBackgroundVs from './labeled-scatterplot-collision-text-background-layer-vertex.glsl';
-import labeledScatterplotMultiIconVs from './labeled-scatterplot-multi-icon-layer-vertex.glsl';
-import {labeledScatterplotLabelUniforms} from './labeled-scatterplot-label-uniforms';
+import labeledIconTextBackgroundVs from './labeled-icon-text-background-layer-vertex.glsl';
+import labeledIconCollisionTextBackgroundVs from './labeled-icon-collision-text-background-layer-vertex.glsl';
+import labeledIconMultiIconVs from './labeled-icon-multi-icon-layer-vertex.glsl';
+import {labeledIconLabelUniforms} from './labeled-icon-label-uniforms';
 
 import type {
   Accessor,
   AccessorContext,
   AccessorFunction,
   Color,
-  DefaultProps,
   LayerDataSource,
   LayerProps,
   LayersList,
   Position,
-  Unit
+  Viewport,
+  UpdateParameters,
+  Unit,
+  DefaultProps
 } from '@deck.gl/core';
-import type {ScatterplotLayerProps} from '../scatterplot-layer/scatterplot-layer';
+import type {FontSettings} from '../text-layer/font-atlas-manager';
+import type {IconLayerProps} from '../icon-layer/icon-layer';
 import type {TextLayerProps} from '../text-layer/text-layer';
 import type {TextBackgroundProps} from '../text-layer/text-background-layer/text-background-layer-uniforms';
 import type {TextModuleProps} from '../text-layer/text-uniforms';
-import type {ScatterplotProps} from '../scatterplot-layer/scatterplot-layer-uniforms';
-import type {LabeledScatterplotLabelProps} from './labeled-scatterplot-label-uniforms';
+import type {IconMapping, UnpackedIcon} from '../icon-layer/icon-manager';
+import type IconManager from '../icon-layer/icon-manager';
+import type {LabeledIconLabelProps} from './labeled-icon-label-uniforms';
 
-const scatterDefaultProps = {...ScatterplotLayer.defaultProps};
-delete scatterDefaultProps.billboard;
-const textDefaultProps = {...TextLayer.defaultProps};
-delete textDefaultProps.billboard;
+const iconDefaultProps = {...IconLayer.defaultProps};
+delete iconDefaultProps.billboard;
+
+const textLayerDefaultProps = TextLayer.defaultProps;
+const textDefaultProps = {
+  getText: textLayerDefaultProps.getText,
+  getTextColor: textLayerDefaultProps.getColor,
+  getTextSize: textLayerDefaultProps.getSize,
+  getTextAngle: textLayerDefaultProps.getAngle,
+  getTextPixelOffset: textLayerDefaultProps.getPixelOffset,
+  getTextBackgroundColor: textLayerDefaultProps.getBackgroundColor,
+  getTextBorderColor: textLayerDefaultProps.getBorderColor,
+  getTextBorderWidth: textLayerDefaultProps.getBorderWidth,
+  textSizeScale: textLayerDefaultProps.sizeScale,
+  textSizeUnits: textLayerDefaultProps.sizeUnits,
+  textSizeMinPixels: textLayerDefaultProps.sizeMinPixels,
+  textSizeMaxPixels: textLayerDefaultProps.sizeMaxPixels,
+  textBackground: textLayerDefaultProps.background,
+  textBackgroundBorderRadius: textLayerDefaultProps.backgroundBorderRadius,
+  textBackgroundPadding: textLayerDefaultProps.backgroundPadding,
+  textCharacterSet: textLayerDefaultProps.characterSet,
+  textFontFamily: textLayerDefaultProps.fontFamily,
+  textFontWeight: textLayerDefaultProps.fontWeight,
+  textLineHeight: textLayerDefaultProps.lineHeight,
+  textMaxWidth: textLayerDefaultProps.maxWidth,
+  textOutlineColor: textLayerDefaultProps.outlineColor,
+  textOutlineWidth: textLayerDefaultProps.outlineWidth,
+  textWordBreak: textLayerDefaultProps.wordBreak,
+  textFontSettings: textLayerDefaultProps.fontSettings,
+  textBillboard: textLayerDefaultProps.billboard,
+  getTextContentBox: {
+    type: 'accessor',
+    value: [-1, -1, -1, -1] as [number, number, number, number]
+  } as const,
+  textContentCutoffPixels: {type: 'array', value: [0, 0] as [number, number]} as const,
+  textContentAlignHorizontal: {type: 'number', value: 0} as const,
+  textContentAlignVertical: {type: 'number', value: 0} as const
+};
+
 const collisionDefaultProps = {
-  getCollisionPriority: {type: 'accessor', value: 0},
-  collisionEnabled: true,
-  collisionGroup: 'default',
-  collisionTestProps: {}
+  getTextCollisionPriority: {type: 'accessor', value: 0},
+  textCollisionEnabled: true,
+  textCollisionGroup: 'default',
+  textCollisionTestProps: {}
 } as const;
 
 const TEXT_ANCHOR = {
@@ -84,38 +122,77 @@ type CollisionTestProps = {
   sizeMaxPixels?: number;
 } & Record<string, unknown>;
 
-export type LabeledScatterplotCollisionProps<DataT> = {
-  getCollisionPriority?: Accessor<DataT, number>;
-  collisionEnabled?: boolean;
-  collisionGroup?: string;
-  collisionTestProps?: CollisionTestProps;
+type LabeledIconCollisionProps<DataT> = {
+  getTextCollisionPriority?: Accessor<DataT, number>;
+  textCollisionEnabled?: boolean;
+  textCollisionGroup?: string;
+  textCollisionTestProps?: CollisionTestProps;
 };
 
-type LabeledScatterplotPlacementProps<DataT> = {
-  getRadius?: Accessor<DataT, number>;
-  radiusUnits?: Unit;
-  radiusScale?: number;
-  radiusMinPixels?: number;
-  radiusMaxPixels?: number;
+type LabeledIconLabelTextProps<DataT> = {
+  getText?: TextLayerProps<DataT>['getText'];
+  getTextColor?: TextLayerProps<DataT>['getColor'];
+  getTextSize?: TextLayerProps<DataT>['getSize'];
+  getTextAngle?: TextLayerProps<DataT>['getAngle'];
+  getTextPixelOffset?: TextLayerProps<DataT>['getPixelOffset'];
+  getTextBackgroundColor?: TextLayerProps<DataT>['getBackgroundColor'];
+  getTextBorderColor?: TextLayerProps<DataT>['getBorderColor'];
+  getTextBorderWidth?: TextLayerProps<DataT>['getBorderWidth'];
+  getTextContentBox?: Accessor<DataT, ContentBox>;
+  textSizeScale?: TextLayerProps<DataT>['sizeScale'];
+  textSizeUnits?: TextLayerProps<DataT>['sizeUnits'];
+  textSizeMinPixels?: TextLayerProps<DataT>['sizeMinPixels'];
+  textSizeMaxPixels?: TextLayerProps<DataT>['sizeMaxPixels'];
+  textBackground?: TextLayerProps<DataT>['background'];
+  textBackgroundBorderRadius?: TextLayerProps<DataT>['backgroundBorderRadius'];
+  textBackgroundPadding?: TextLayerProps<DataT>['backgroundPadding'];
+  textCharacterSet?: TextLayerProps<DataT>['characterSet'];
+  textFontFamily?: TextLayerProps<DataT>['fontFamily'];
+  textFontWeight?: TextLayerProps<DataT>['fontWeight'];
+  textLineHeight?: TextLayerProps<DataT>['lineHeight'];
+  textMaxWidth?: TextLayerProps<DataT>['maxWidth'];
+  textOutlineColor?: TextLayerProps<DataT>['outlineColor'];
+  textOutlineWidth?: TextLayerProps<DataT>['outlineWidth'];
+  textWordBreak?: TextLayerProps<DataT>['wordBreak'];
+  textFontSettings?: FontSettings;
+  textContentCutoffPixels?: NonNullable<TextModuleProps['contentCutoffPixels']>;
+  textContentAlignHorizontal?: TextModuleProps['contentAlignHorizontal'];
+  textContentAlignVertical?: TextModuleProps['contentAlignVertical'];
+  textBillboard?: TextLayerProps<DataT>['billboard'];
+};
+
+type LabeledIconPlacementProps<DataT> = {
+  getPointSize?: Accessor<DataT, number>;
+  pointSizeUnits?: Unit;
+  pointSizeScale?: number;
+  pointSizeBasis?: 'height' | 'width';
+  pointSizeMinPixels?: number;
+  pointSizeMaxPixels?: number;
+  getPointPlacement?: Accessor<DataT, PointPlacement>;
   labelPosition?: 'top' | 'bottom';
   labelPadding?: number;
 };
 
-type LabeledScatterplotBillboardProps = {
-  pointBillboard?: boolean | null;
-  textBillboard?: boolean | null;
+type PointPlacement = Readonly<[number, number, number, number]>;
+
+type LabeledIconBillboardProps = {
+  iconBillboard?: boolean;
+  textBillboard?: boolean;
 };
 
-type LabeledScatterplotTextLayerProps<DataT> = Omit<TextLayerProps<DataT>, 'billboard'> &
-  LabeledScatterplotCollisionProps<DataT> &
-  LabeledScatterplotPlacementProps<DataT> & {
+type LabeledIconTextLayerProps<DataT> = Omit<TextLayerProps<DataT>, 'billboard'> &
+  LabeledIconPlacementProps<DataT> & {
+    collisionEnabled?: boolean;
+    collisionGroup?: string;
+    collisionTestProps?: CollisionTestProps;
+    getCollisionPriority?: Accessor<DataT, number>;
     getContentBox?: Accessor<DataT, ContentBox>;
     contentCutoffPixels?: NonNullable<TextModuleProps['contentCutoffPixels']>;
     contentAlignHorizontal?: TextModuleProps['contentAlignHorizontal'];
     contentAlignVertical?: TextModuleProps['contentAlignVertical'];
   };
 
-type LabeledScatterplotTextSubLayerProps<DataT> = LabeledScatterplotPlacementProps<DataT> & {
+type LabeledIconTextSubLayerProps<DataT> = LabeledIconPlacementProps<DataT> & {
   data: LayerDataSource<DataT>;
   boxSizeScale?: number;
   boxSizeUnits?: Unit;
@@ -131,74 +208,169 @@ type LabeledScatterplotTextSubLayerProps<DataT> = LabeledScatterplotPlacementPro
   getAngle?: Accessor<DataT, number>;
   getPixelOffset?: Accessor<DataT, Readonly<[number, number]>>;
   backgroundPadding?: Readonly<[number, number]> | Readonly<[number, number, number, number]>;
+  getPointPlacement?: Accessor<DataT, PointPlacement>;
   getContentBox?: Accessor<DataT, ContentBox>;
   getBoundingRect?: Accessor<DataT, BoundingRect>;
 };
 
-type LabeledScatterplotTextBackgroundLayerProps<DataT> =
-  LabeledScatterplotTextSubLayerProps<DataT> & {
-    borderRadius?: number | Readonly<[number, number, number, number]>;
-    padding?: Readonly<[number, number]> | Readonly<[number, number, number, number]>;
-    getClipRect?: Accessor<DataT, BoundingRect>;
-    getBoundingRect?: Accessor<DataT, BoundingRect>;
-    getFillColor?: Accessor<DataT, Color>;
-    getLineColor?: Accessor<DataT, Color>;
-    getLineWidth?: Accessor<DataT, number>;
-  };
+type LabeledIconTextBackgroundLayerProps<DataT> = LabeledIconTextSubLayerProps<DataT> & {
+  borderRadius?: number | Readonly<[number, number, number, number]>;
+  padding?: Readonly<[number, number]> | Readonly<[number, number, number, number]>;
+  getClipRect?: Accessor<DataT, BoundingRect>;
+  getBoundingRect?: Accessor<DataT, BoundingRect>;
+  getFillColor?: Accessor<DataT, Color>;
+  getLineColor?: Accessor<DataT, Color>;
+  getLineWidth?: Accessor<DataT, number>;
+};
 
-type LabeledScatterplotMultiIconLayerProps<DataT> = LabeledScatterplotTextSubLayerProps<DataT> &
+type LabeledIconMultiIconLayerProps<DataT> = LabeledIconTextSubLayerProps<DataT> &
   LayerProps & {
     contentCutoffPixels?: NonNullable<TextModuleProps['contentCutoffPixels']>;
     contentAlignHorizontal?: TextModuleProps['contentAlignHorizontal'];
     contentAlignVertical?: TextModuleProps['contentAlignVertical'];
   };
 
-export type LabeledScatterplotLayerProps<DataT = unknown> = Omit<
-  ScatterplotLayerProps<DataT>,
-  'billboard'
-> &
-  Omit<TextLayerProps<DataT>, 'billboard'> & {
-    getContentBox?: Accessor<DataT, ContentBox>;
-    contentCutoffPixels?: NonNullable<TextModuleProps['contentCutoffPixels']>;
-    contentAlignHorizontal?: TextModuleProps['contentAlignHorizontal'];
-    contentAlignVertical?: TextModuleProps['contentAlignVertical'];
-  } & LabeledScatterplotCollisionProps<DataT> &
-  LabeledScatterplotBillboardProps & {
+export type LabeledIconLayerProps<DataT = unknown> = Omit<IconLayerProps<DataT>, 'billboard'> &
+  LabeledIconLabelTextProps<DataT> &
+  LabeledIconCollisionProps<DataT> &
+  LabeledIconBillboardProps & {
     labelPosition?: 'top' | 'bottom';
     labelPadding?: number;
   };
 
-const defaultProps: DefaultProps<LabeledScatterplotLayerProps> = {
-  ...scatterDefaultProps,
+const defaultProps: DefaultProps<LabeledIconLayerProps> = {
+  ...iconDefaultProps,
   ...textDefaultProps,
   ...collisionDefaultProps,
   labelPosition: 'top',
   labelPadding: {type: 'number', min: 0, value: 4},
-  pointBillboard: false,
-  textBillboard: true
+  iconBillboard: IconLayer.defaultProps.billboard,
+  textBillboard: TextLayer.defaultProps.billboard
 };
 
-function getScatterplotShaderProps<DataT>(
-  props: LabeledScatterplotPlacementProps<DataT>
-): ScatterplotProps {
-  return {
-    radiusUnits: UNIT[props.radiusUnits ?? 'pixels'],
-    radiusScale: props.radiusScale ?? 1,
-    radiusMinPixels: props.radiusMinPixels ?? 0,
-    radiusMaxPixels: props.radiusMaxPixels ?? Number.MAX_SAFE_INTEGER,
-    lineWidthUnits: UNIT.pixels,
-    lineWidthScale: 0,
-    lineWidthMinPixels: 0,
-    lineWidthMaxPixels: 0,
-    stroked: false,
-    filled: true,
-    antialiasing: false,
-    billboard: false
+type ResolvedIconDefinition = {
+  width: number;
+  height: number;
+  anchorX?: number;
+  anchorY?: number;
+};
+
+type IconDefinitionResolver = {
+  getIconMapping(icon: string | UnpackedIcon): ResolvedIconDefinition;
+} | null;
+
+type AccessorContextWithViewport<DataT> = AccessorContext<DataT> & {
+  viewport?: Pick<Viewport, 'getDistanceScales' | 'scale'>;
+};
+
+function getIconKey(icon: string | UnpackedIcon | null | undefined): string | null {
+  if (!icon) {
+    return null;
+  }
+  if (typeof icon === 'string') {
+    return icon;
+  }
+  return icon.id || icon.url || null;
+}
+
+function resolveIconDefinition(
+  iconMapping: string | IconMapping | null | undefined,
+  icon: string | UnpackedIcon | null | undefined,
+  iconResolver: IconDefinitionResolver = null
+): ResolvedIconDefinition {
+  const mapping = typeof iconMapping === 'string' ? null : iconMapping;
+  const iconKey = getIconKey(icon);
+  const mappedIcon = iconKey && mapping ? mapping[iconKey] : null;
+
+  if (mappedIcon) {
+    return mappedIcon;
+  }
+  if (iconKey && iconResolver) {
+    return iconResolver.getIconMapping(icon as string | UnpackedIcon);
+  }
+  if (icon && typeof icon !== 'string') {
+    return icon;
+  }
+  return {width: 0, height: 0};
+}
+
+function createPointPlacementAccessor<DataT>(
+  getPointSize: Accessor<DataT, number> | undefined,
+  getIcon: Accessor<DataT, string> | Accessor<DataT, UnpackedIcon> | undefined,
+  iconMapping: string | IconMapping | null | undefined,
+  getIconResolver: (() => IconDefinitionResolver) | undefined
+): Accessor<DataT, PointPlacement> {
+  return (object, info) => {
+    const pointSize =
+      typeof getPointSize === 'function' ? getPointSize(object, info) : getPointSize;
+    const icon = typeof getIcon === 'function' ? getIcon(object, info) : getIcon;
+    const iconResolver = getIconResolver?.();
+    const {width, height, anchorY} = resolveIconDefinition(iconMapping, icon, iconResolver);
+    const resolvedAnchorY = anchorY ?? height / 2;
+
+    return [pointSize ?? 1, width, height, resolvedAnchorY];
+  };
+}
+
+function createIconAlignedPixelOffsetAccessor<DataT>(
+  getPixelOffset: Accessor<DataT, Readonly<[number, number]>> | undefined,
+  getPosition: Accessor<DataT, Position> | undefined,
+  getPointSize: Accessor<DataT, number> | undefined,
+  getIcon: Accessor<DataT, string> | Accessor<DataT, UnpackedIcon> | undefined,
+  iconMapping: string | IconMapping | null | undefined,
+  getIconResolver: (() => IconDefinitionResolver) | undefined,
+  pointSizeUnits: Unit,
+  pointSizeScale: number,
+  pointSizeBasis: 'width' | 'height',
+  pointSizeMinPixels: number,
+  pointSizeMaxPixels: number,
+  labelPosition: 'top' | 'bottom',
+  labelPadding: number
+): Accessor<DataT, Readonly<[number, number]>> {
+  return (object, info) => {
+    const basePixelOffset =
+      typeof getPixelOffset === 'function'
+        ? getPixelOffset(object, info)
+        : (getPixelOffset ?? [0, 0]);
+    const pointSize =
+      typeof getPointSize === 'function' ? getPointSize(object, info) : (getPointSize ?? 1);
+    const icon = typeof getIcon === 'function' ? getIcon(object, info) : getIcon;
+    const position =
+      typeof getPosition === 'function' ? getPosition(object, info) : (getPosition ?? [0, 0, 0]);
+    const iconResolver = getIconResolver?.();
+    const {
+      width,
+      height,
+      anchorY = height / 2
+    } = resolveIconDefinition(iconMapping, icon, iconResolver);
+
+    let sizePixels = pointSize * pointSizeScale;
+    const viewport = (info as AccessorContextWithViewport<DataT>).viewport;
+
+    if (pointSizeUnits === 'meters') {
+      const distanceScales = viewport?.getDistanceScales(position as unknown as number[]) as
+        | {unitsPerMeter: [number, number, number]}
+        | undefined;
+      sizePixels *= distanceScales?.unitsPerMeter[2] ?? 1;
+      sizePixels *= viewport?.scale ?? 1;
+    } else if (pointSizeUnits === 'common') {
+      sizePixels *= viewport?.scale ?? 1;
+    }
+
+    sizePixels = Math.max(pointSizeMinPixels, Math.min(pointSizeMaxPixels, sizePixels));
+    const iconConstraint = pointSizeBasis === 'width' ? width : height;
+    const scale = iconConstraint === 0 ? 0 : sizePixels / iconConstraint;
+    const topExtent = anchorY * scale;
+    const bottomExtent = (height - anchorY) * scale;
+    const labelOffset =
+      labelPosition === 'top' ? -(topExtent + labelPadding) : bottomExtent + labelPadding;
+
+    return [basePixelOffset[0], basePixelOffset[1] + labelOffset];
   };
 }
 
 function getLabelPlacementProps<DataT>(
-  props: LabeledScatterplotPlacementProps<DataT> & {
+  props: LabeledIconPlacementProps<DataT> & {
     boxSizeScale?: number;
     boxSizeUnits?: Unit;
     boxSizeMinPixels?: number;
@@ -209,7 +381,7 @@ function getLabelPlacementProps<DataT>(
     sizeMaxPixels?: number;
     backgroundPadding?: Readonly<[number, number]> | Readonly<[number, number, number, number]>;
   }
-): LabeledScatterplotLabelProps {
+): LabeledIconLabelProps {
   const backgroundPadding = props.backgroundPadding ?? [0, 0, 0, 0];
   const collisionPadding =
     backgroundPadding.length < 4
@@ -217,9 +389,6 @@ function getLabelPlacementProps<DataT>(
       : [...backgroundPadding];
 
   return {
-    padding: props.labelPadding ?? 4,
-    // Text pixel offsets use screen coordinates where positive y moves downward.
-    direction: props.labelPosition === 'bottom' ? 1 : -1,
     boxSizeScale: props.boxSizeScale ?? props.sizeScale ?? 1,
     boxSizeUnits: UNIT[props.boxSizeUnits ?? props.sizeUnits ?? 'pixels'],
     boxSizeMinPixels: props.boxSizeMinPixels ?? props.sizeMinPixels ?? 0,
@@ -257,25 +426,20 @@ function mapCollisionTestProps(collisionTestProps: CollisionTestProps | undefine
   return mappedProps;
 }
 
-class BaseLabeledScatterplotTextBackgroundLayer<
+class BaseLabeledIconTextBackgroundLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
 > extends TextBackgroundLayer<
   DataT,
-  ExtraPropsT & Required<LabeledScatterplotTextBackgroundLayerProps<DataT>>
+  ExtraPropsT & Required<LabeledIconTextBackgroundLayerProps<DataT>>
 > {
+  static layerName = 'BaseLabeledIconTextBackgroundLayer';
+
   getShaders() {
     return Layer.prototype.getShaders.call(this, {
       vs: this.getVertexShader(),
       fs: textBackgroundFs,
-      modules: [
-        project32,
-        picking,
-        textBackgroundUniforms,
-        textUniforms,
-        scatterplotUniforms,
-        labeledScatterplotLabelUniforms
-      ]
+      modules: [project32, picking, textBackgroundUniforms, textUniforms, labeledIconLabelUniforms]
     });
   }
 
@@ -292,11 +456,15 @@ class BaseLabeledScatterplotTextBackgroundLayer<
         accessor: 'getClipRect',
         defaultValue: [-1, -1, -1, -1]
       },
-      instanceRadius: {
-        size: 1,
-        transition: true,
-        accessor: 'getRadius',
-        defaultValue: 1
+      instancePickingColors: {
+        type: 'uint8',
+        size: 3,
+        accessor: (_, {index, target: value}) => this.encodePickingColor(index, value)
+      },
+      instancePointPlacements: {
+        size: 4,
+        accessor: 'getPointPlacement',
+        defaultValue: [1, 0, 0, 0]
       }
     });
   }
@@ -340,55 +508,46 @@ class BaseLabeledScatterplotTextBackgroundLayer<
     model.shaderInputs.setProps({
       textBackground: textBackgroundProps,
       text: textProps,
-      scatterplot: getScatterplotShaderProps(this.props),
-      labeledScatterplotLabel: getLabelPlacementProps(this.props)
+      labeledIconLabel: getLabelPlacementProps(this.props)
     });
     model.draw(this.context.renderPass);
   }
 
   protected getVertexShader() {
-    return labeledScatterplotTextBackgroundVs;
+    return labeledIconTextBackgroundVs;
   }
 }
 
-class LabeledScatterplotTextBackgroundLayer<
+class LabeledIconTextBackgroundLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
-> extends BaseLabeledScatterplotTextBackgroundLayer<DataT, ExtraPropsT> {
-  static layerName = 'LabeledScatterplotTextBackgroundLayer';
+> extends BaseLabeledIconTextBackgroundLayer<DataT, ExtraPropsT> {
+  static layerName = 'LabeledIconTextBackgroundLayer';
 }
 
-class LabeledScatterplotCollisionTextBackgroundLayer<
+class LabeledIconCollisionTextBackgroundLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
-> extends BaseLabeledScatterplotTextBackgroundLayer<DataT, ExtraPropsT> {
-  static layerName = 'LabeledScatterplotCollisionTextBackgroundLayer';
+> extends BaseLabeledIconTextBackgroundLayer<DataT, ExtraPropsT> {
+  static layerName = 'LabeledIconCollisionTextBackgroundLayer';
 
   protected getVertexShader() {
-    return labeledScatterplotCollisionTextBackgroundVs;
+    return labeledIconCollisionTextBackgroundVs;
   }
 }
 
-class LabeledScatterplotMultiIconLayer<
+class LabeledIconMultiIconLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
-> extends MultiIconLayer<
-  DataT,
-  ExtraPropsT & Required<LabeledScatterplotMultiIconLayerProps<DataT>>
-> {
-  static layerName = 'LabeledScatterplotMultiIconLayer';
+> extends MultiIconLayer<DataT, ExtraPropsT & Required<LabeledIconMultiIconLayerProps<DataT>>> {
+  static layerName = 'LabeledIconMultiIconLayer';
 
   getShaders() {
     const shaders = super.getShaders();
     return {
       ...shaders,
-      modules: [
-        ...shaders.modules,
-        textUniforms,
-        scatterplotUniforms,
-        labeledScatterplotLabelUniforms
-      ],
-      vs: labeledScatterplotMultiIconVs,
+      modules: [...shaders.modules, textUniforms, labeledIconLabelUniforms],
+      vs: labeledIconMultiIconVs,
       fs: multiIconFs
     };
   }
@@ -406,11 +565,10 @@ class LabeledScatterplotMultiIconLayer<
         accessor: 'getContentBox',
         defaultValue: [-1, -1, -1, -1]
       },
-      instanceRadius: {
-        size: 1,
-        transition: true,
-        accessor: 'getRadius',
-        defaultValue: 1
+      instancePointPlacements: {
+        size: 4,
+        accessor: 'getPointPlacement',
+        defaultValue: [1, 0, 0, 0]
       },
       instanceBoundingRects: {
         size: 4,
@@ -434,28 +592,44 @@ class LabeledScatterplotMultiIconLayer<
     };
     model.shaderInputs.setProps({
       text: textProps,
-      scatterplot: getScatterplotShaderProps(this.props),
-      labeledScatterplotLabel: getLabelPlacementProps(this.props)
+      labeledIconLabel: getLabelPlacementProps(this.props)
     });
     super.draw(params);
   }
 }
 
-class LabeledScatterplotTextLayer<
-  DataT = unknown,
-  ExtraPropsT extends object = object
-> extends TextLayer<DataT, ExtraPropsT & Required<LabeledScatterplotTextLayerProps<DataT>>> {
-  static layerName = 'LabeledScatterplotTextLayer';
+class LabeledIconIconLayer<DataT = unknown, ExtraPropsT extends object = object> extends IconLayer<
+  DataT,
+  ExtraPropsT & {onIconManagerUpdate?: (iconManager: IconManager) => void}
+> {
+  static layerName = 'LabeledIconIconLayer';
+
+  updateState(params: UpdateParameters<this>) {
+    super.updateState(params);
+    this.props.onIconManagerUpdate?.(this.state.iconManager);
+  }
+}
+
+class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object> extends TextLayer<
+  DataT,
+  ExtraPropsT & Required<LabeledIconTextLayerProps<DataT>>
+> {
+  static layerName = 'LabeledIconTextLayer';
   static defaultProps = {
     ...TextLayer.defaultProps,
-    ...collisionDefaultProps,
-    getRadius: {type: 'accessor', value: 1},
-    radiusUnits: 'pixels',
-    radiusScale: {type: 'number', min: 0, value: 1},
-    radiusMinPixels: {type: 'number', min: 0, value: 0},
-    radiusMaxPixels: {type: 'number', min: 0, value: Number.MAX_SAFE_INTEGER},
+    getPointSize: {type: 'accessor', value: 1},
+    getPointPlacement: {type: 'accessor', value: [1, 0, 0, 0]},
+    pointSizeUnits: 'pixels',
+    pointSizeScale: {type: 'number', min: 0, value: 1},
+    pointSizeBasis: 'height',
+    pointSizeMinPixels: {type: 'number', min: 0, value: 0},
+    pointSizeMaxPixels: {type: 'number', min: 0, value: Number.MAX_SAFE_INTEGER},
     labelPosition: 'top',
-    labelPadding: {type: 'number', min: 0, value: 4}
+    labelPadding: {type: 'number', min: 0, value: 4},
+    collisionEnabled: true,
+    collisionGroup: 'default',
+    collisionTestProps: {},
+    getCollisionPriority: {type: 'accessor', value: 0}
   };
 
   filterSubLayer({layer, renderPass}) {
@@ -590,11 +764,12 @@ class LabeledScatterplotTextLayer<
       getCollisionPriority,
       transitions,
       updateTriggers,
-      getRadius,
-      radiusUnits,
-      radiusScale,
-      radiusMinPixels,
-      radiusMaxPixels,
+      pointSizeUnits,
+      pointSizeScale,
+      pointSizeBasis,
+      pointSizeMinPixels,
+      pointSizeMaxPixels,
+      getPointPlacement,
       labelPosition,
       labelPadding
     } = this.props;
@@ -602,26 +777,23 @@ class LabeledScatterplotTextLayer<
     const getIconOffsets = this._getIconOffsetsForLabel;
     const collisionTestProps = mapCollisionTestProps(this.props.collisionTestProps);
     const dataWithAttributes = data as TextDataWithAttributes;
-
-    const CharactersLayerClass = this.getSubLayerClass(
-      'characters',
-      LabeledScatterplotMultiIconLayer
-    );
+    const CharactersLayerClass = this.getSubLayerClass('characters', LabeledIconMultiIconLayer);
     const BackgroundLayerClass = this.getSubLayerClass(
       'background',
-      LabeledScatterplotTextBackgroundLayer
+      LabeledIconTextBackgroundLayer
     );
     const CollisionBackgroundLayerClass = this.getSubLayerClass(
       'collision-background',
-      LabeledScatterplotCollisionTextBackgroundLayer
+      LabeledIconCollisionTextBackgroundLayer
     );
 
     const placementProps = {
-      getRadius,
-      radiusUnits,
-      radiusScale,
-      radiusMinPixels,
-      radiusMaxPixels,
+      pointSizeUnits,
+      pointSizeScale,
+      pointSizeBasis,
+      pointSizeMinPixels,
+      pointSizeMaxPixels,
+      getPointPlacement,
       labelPosition,
       labelPadding,
       backgroundPadding: collisionTestProps?.padding ?? backgroundPadding,
@@ -663,8 +835,7 @@ class LabeledScatterplotTextLayer<
               getFillColor: transitions.getBackgroundColor,
               getLineColor: transitions.getBorderColor,
               getLineWidth: transitions.getBorderWidth,
-              getPixelOffset: transitions.getPixelOffset,
-              getRadius: transitions.getRadius
+              getPixelOffset: transitions.getPixelOffset
             }
           },
           this.getSubLayerProps({
@@ -678,7 +849,9 @@ class LabeledScatterplotTextLayer<
               getLineWidth: updateTriggers.getBorderWidth,
               getClipRect: updateTriggers.getContentBox,
               getPixelOffset: updateTriggers.getPixelOffset,
-              getRadius: updateTriggers.getRadius,
+              getPointPlacement: {
+                getPointPlacement: updateTriggers.getPointPlacement
+              },
               getBoundingRect: {
                 getText: updateTriggers.getText,
                 getTextAnchor: updateTriggers.getTextAnchor,
@@ -726,7 +899,9 @@ class LabeledScatterplotTextLayer<
             getSize: updateTriggers.getSize,
             getClipRect: updateTriggers.getContentBox,
             getPixelOffset: updateTriggers.getPixelOffset,
-            getRadius: updateTriggers.getRadius,
+            getPointPlacement: {
+              getPointPlacement: updateTriggers.getPointPlacement
+            },
             getBoundingRect: {
               getText: updateTriggers.getText,
               getTextAnchor: updateTriggers.getTextAnchor,
@@ -786,8 +961,7 @@ class LabeledScatterplotTextLayer<
             getColor: transitions.getColor,
             getSize: transitions.getSize,
             getPixelOffset: transitions.getPixelOffset,
-            getContentBox: transitions.getContentBox,
-            getRadius: transitions.getRadius
+            getContentBox: transitions.getContentBox
           }
         },
         this.getSubLayerProps({
@@ -800,7 +974,9 @@ class LabeledScatterplotTextLayer<
             getSize: updateTriggers.getSize,
             getPixelOffset: updateTriggers.getPixelOffset,
             getContentBox: updateTriggers.getContentBox,
-            getRadius: updateTriggers.getRadius,
+            getPointPlacement: {
+              getPointPlacement: updateTriggers.getPointPlacement
+            },
             getBoundingRect: {
               getText: updateTriggers.getText,
               getTextAnchor: updateTriggers.getTextAnchor,
@@ -828,25 +1004,25 @@ class LabeledScatterplotTextLayer<
   }
 }
 
-/** Renders scatterplot circles plus decluttered labels positioned outside each circle. */
-export default class LabeledScatterplotLayer<
+/** Renders icons plus decluttered labels positioned outside each icon. */
+export default class LabeledIconLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
-> extends CompositeLayer<ExtraPropsT & Required<LabeledScatterplotLayerProps<DataT>>> {
-  static layerName = 'LabeledScatterplotLayer';
+> extends CompositeLayer<ExtraPropsT & Required<LabeledIconLayerProps<DataT>>> {
+  static layerName = 'LabeledIconLayer';
   static defaultProps = defaultProps;
 
-  private _getPointBillboard(): boolean {
-    const {pointBillboard} = this.props;
-    return pointBillboard ?? false;
+  private _getIconBillboard(): boolean {
+    const {iconBillboard} = this.props;
+    return iconBillboard ?? IconLayer.defaultProps.billboard;
   }
 
   private _getTextBillboard(): boolean {
     const {textBillboard} = this.props;
-    return textBillboard ?? true;
+    return textBillboard ?? TextLayer.defaultProps.billboard;
   }
 
-  private _getCircleExtensions() {
+  private _getIconExtensions() {
     return filterCollisionExtensions(this.props.extensions);
   }
 
@@ -869,19 +1045,16 @@ export default class LabeledScatterplotLayer<
     }
 
     const cleanedAttributes = {...attributes};
-    const background = cleanedAttributes.background;
     delete cleanedAttributes.instancePickingColors;
 
-    const backgroundAttributes = background ? {...background} : background;
-    if (backgroundAttributes) {
-      delete backgroundAttributes.instancePickingColors;
+    if (cleanedAttributes.background) {
+      cleanedAttributes.background = {...cleanedAttributes.background};
+      delete cleanedAttributes.background.instancePickingColors;
     }
 
     return {
       ...dataWithAttributes,
-      attributes: backgroundAttributes
-        ? {...cleanedAttributes, background: backgroundAttributes}
-        : cleanedAttributes
+      attributes: cleanedAttributes
     } as LayerDataSource<DataT>;
   }
 
@@ -889,157 +1062,185 @@ export default class LabeledScatterplotLayer<
     const {
       data,
       getPosition,
-      getRadius,
-      getFillColor,
-      getLineColor,
-      getLineWidth,
-      radiusUnits,
-      radiusScale,
-      radiusMinPixels,
-      radiusMaxPixels,
-      lineWidthUnits,
-      lineWidthScale,
-      lineWidthMinPixels,
-      lineWidthMaxPixels,
-      stroked,
-      filled,
-      antialiasing,
-      getText,
+      getIcon,
       getColor,
       getSize,
       getAngle,
       getPixelOffset,
-      getBackgroundColor,
-      getBorderColor,
-      getBorderWidth,
-      background,
-      backgroundBorderRadius,
-      backgroundPadding,
-      characterSet,
-      fontFamily,
-      fontWeight,
-      lineHeight,
-      maxWidth,
-      outlineColor,
-      outlineWidth,
-      wordBreak,
-      fontSettings,
-      sizeUnits,
+      iconAtlas,
+      iconMapping,
       sizeScale,
+      sizeUnits,
+      sizeBasis,
       sizeMinPixels,
       sizeMaxPixels,
-      getContentBox,
-      contentCutoffPixels,
-      contentAlignHorizontal,
-      contentAlignVertical,
-      collisionEnabled,
-      collisionGroup,
-      collisionTestProps,
-      getCollisionPriority,
+      alphaCutoff,
+      getText,
+      getTextColor,
+      getTextSize,
+      getTextAngle,
+      getTextPixelOffset,
+      getTextBackgroundColor,
+      getTextBorderColor,
+      getTextBorderWidth,
+      textBackground,
+      textBackgroundBorderRadius,
+      textBackgroundPadding,
+      textCharacterSet,
+      textFontFamily,
+      textFontWeight,
+      textLineHeight,
+      textMaxWidth,
+      textOutlineColor,
+      textOutlineWidth,
+      textWordBreak,
+      textFontSettings,
+      textSizeUnits,
+      textSizeScale,
+      textSizeMinPixels,
+      textSizeMaxPixels,
+      getTextContentBox,
+      textContentCutoffPixels,
+      textContentAlignHorizontal,
+      textContentAlignVertical,
+      textCollisionEnabled,
+      textCollisionGroup,
+      textCollisionTestProps,
+      getTextCollisionPriority,
       labelPosition,
       labelPadding,
       transitions,
       updateTriggers
     } = this.props;
 
+    const iconManagerRef: {current: IconManager | null} = {current: null};
+    const getPointPlacement = createPointPlacementAccessor(
+      getSize,
+      getIcon,
+      iconMapping,
+      () => iconManagerRef.current
+    );
+    const getAlignedPixelOffset = createIconAlignedPixelOffsetAccessor(
+      getTextPixelOffset,
+      getPosition,
+      getSize,
+      getIcon,
+      iconMapping,
+      () => iconManagerRef.current,
+      sizeUnits,
+      sizeScale,
+      sizeBasis,
+      sizeMinPixels,
+      sizeMaxPixels,
+      labelPosition,
+      labelPadding
+    );
     return [
-      new ScatterplotLayer(
+      new LabeledIconIconLayer<DataT>(
         {
           getPosition,
-          getRadius,
-          getFillColor,
-          getLineColor,
-          getLineWidth,
-          radiusUnits,
-          radiusScale,
-          radiusMinPixels,
-          radiusMaxPixels,
-          lineWidthUnits,
-          lineWidthScale,
-          lineWidthMinPixels,
-          lineWidthMaxPixels,
-          stroked,
-          filled,
-          antialiasing,
-          billboard: this._getPointBillboard(),
-          transitions: transitions && {
-            getPosition: transitions.getPosition,
-            getRadius: transitions.getRadius,
-            getFillColor: transitions.getFillColor,
-            getLineColor: transitions.getLineColor,
-            getLineWidth: transitions.getLineWidth
-          }
-        },
-        this.getSubLayerProps({
-          id: 'circles',
-          extensions: this._getCircleExtensions(),
-          updateTriggers: {
-            getPosition: updateTriggers.getPosition,
-            getRadius: updateTriggers.getRadius,
-            getFillColor: updateTriggers.getFillColor,
-            getLineColor: updateTriggers.getLineColor,
-            getLineWidth: updateTriggers.getLineWidth
-          }
-        }),
-        {data}
-      ),
-      new LabeledScatterplotTextLayer<DataT>(
-        {
-          data: this._getLabelData(),
-          getText,
-          getPosition,
+          getIcon,
           getColor,
           getSize,
           getAngle,
           getPixelOffset,
-          getBackgroundColor,
-          getBorderColor,
-          getBorderWidth,
-          background,
-          backgroundBorderRadius,
-          backgroundPadding,
-          characterSet,
-          fontFamily,
-          fontWeight,
-          lineHeight,
-          maxWidth,
-          outlineColor,
-          outlineWidth,
-          wordBreak,
-          fontSettings,
-          sizeUnits,
+          iconAtlas,
+          iconMapping,
           sizeScale,
+          sizeUnits,
+          sizeBasis,
           sizeMinPixels,
           sizeMaxPixels,
-          getContentBox,
-          contentCutoffPixels,
-          contentAlignHorizontal,
-          contentAlignVertical,
+          alphaCutoff,
+          billboard: this._getIconBillboard(),
+          onIconManagerUpdate: iconManager => {
+            if (iconManagerRef.current !== iconManager) {
+              iconManagerRef.current = iconManager;
+              this.setNeedsUpdate();
+            }
+          },
+          transitions: transitions && {
+            getPosition: transitions.getPosition,
+            getIcon: transitions.getIcon,
+            getColor: transitions.getColor,
+            getSize: transitions.getSize,
+            getAngle: transitions.getAngle,
+            getPixelOffset: transitions.getPixelOffset
+          }
+        },
+        this.getSubLayerProps({
+          id: 'icons',
+          extensions: this._getIconExtensions(),
+          updateTriggers: {
+            getPosition: updateTriggers.getPosition,
+            getIcon: updateTriggers.getIcon,
+            getColor: updateTriggers.getColor,
+            getSize: updateTriggers.getSize,
+            getAngle: updateTriggers.getAngle,
+            getPixelOffset: updateTriggers.getPixelOffset
+          }
+        }),
+        {data}
+      ),
+      new LabeledIconTextLayer<DataT>(
+        {
+          data: this._getLabelData(),
+          getText,
+          getPosition,
+          getColor: getTextColor,
+          getSize: getTextSize,
+          getAngle: getTextAngle,
+          getBackgroundColor: getTextBackgroundColor,
+          getBorderColor: getTextBorderColor,
+          getBorderWidth: getTextBorderWidth,
+          background: textBackground,
+          backgroundBorderRadius: textBackgroundBorderRadius,
+          backgroundPadding: textBackgroundPadding,
+          characterSet: textCharacterSet,
+          fontFamily: textFontFamily,
+          fontWeight: textFontWeight,
+          lineHeight: textLineHeight,
+          maxWidth: textMaxWidth,
+          outlineColor: textOutlineColor,
+          outlineWidth: textOutlineWidth,
+          wordBreak: textWordBreak,
+          fontSettings: textFontSettings,
+          sizeUnits: textSizeUnits,
+          sizeScale: textSizeScale,
+          sizeMinPixels: textSizeMinPixels,
+          sizeMaxPixels: textSizeMaxPixels,
+          getContentBox: getTextContentBox,
+          contentCutoffPixels: textContentCutoffPixels,
+          contentAlignHorizontal: textContentAlignHorizontal,
+          contentAlignVertical: textContentAlignVertical,
           billboard: this._getTextBillboard(),
           getTextAnchor: 'middle',
           getAlignmentBaseline: labelPosition === 'bottom' ? 'top' : 'bottom',
-          getRadius,
-          radiusUnits,
-          radiusScale,
-          radiusMinPixels,
-          radiusMaxPixels,
+          getPointSize: getSize,
+          getPointPlacement,
+          getPixelOffset: getAlignedPixelOffset,
+          pointSizeUnits: sizeUnits,
+          pointSizeScale: sizeScale,
+          pointSizeBasis: sizeBasis,
+          pointSizeMinPixels: sizeMinPixels,
+          pointSizeMaxPixels: sizeMaxPixels,
           labelPosition,
           labelPadding,
-          collisionEnabled,
-          collisionGroup,
-          collisionTestProps,
-          getCollisionPriority,
+          collisionEnabled: textCollisionEnabled,
+          collisionGroup: textCollisionGroup,
+          collisionTestProps: textCollisionTestProps,
+          getCollisionPriority: getTextCollisionPriority,
           transitions: transitions && {
             getPosition: transitions.getPosition,
-            getSize: transitions.getSize,
-            getAngle: transitions.getAngle,
-            getPixelOffset: transitions.getPixelOffset,
-            getColor: transitions.getColor,
-            getBackgroundColor: transitions.getBackgroundColor,
-            getBorderColor: transitions.getBorderColor,
-            getBorderWidth: transitions.getBorderWidth,
-            getContentBox: transitions.getContentBox,
-            getRadius: transitions.getRadius
+            getSize: transitions.getTextSize,
+            getAngle: transitions.getTextAngle,
+            getPixelOffset: transitions.getTextPixelOffset,
+            getColor: transitions.getTextColor,
+            getBackgroundColor: transitions.getTextBackgroundColor,
+            getBorderColor: transitions.getTextBorderColor,
+            getBorderWidth: transitions.getTextBorderWidth,
+            getContentBox: transitions.getTextContentBox,
+            getPointSize: transitions.getSize
           }
         },
         this.getSubLayerProps({
@@ -1047,6 +1248,32 @@ export default class LabeledScatterplotLayer<
           extensions: this._getLabelExtensions(),
           updateTriggers: {
             ...updateTriggers,
+            getColor: updateTriggers.getTextColor,
+            getSize: updateTriggers.getTextSize,
+            getAngle: updateTriggers.getTextAngle,
+            getPixelOffset: {
+              getPixelOffset: updateTriggers.getTextPixelOffset,
+              getPointSize: updateTriggers.getSize,
+              getIcon: updateTriggers.getIcon,
+              iconMapping,
+              labelPosition,
+              labelPadding,
+              pointSizeUnits: sizeUnits,
+              pointSizeScale: sizeScale,
+              pointSizeBasis: sizeBasis,
+              pointSizeMinPixels: sizeMinPixels,
+              pointSizeMaxPixels: sizeMaxPixels
+            },
+            getBackgroundColor: updateTriggers.getTextBackgroundColor,
+            getBorderColor: updateTriggers.getTextBorderColor,
+            getBorderWidth: updateTriggers.getTextBorderWidth,
+            getContentBox: updateTriggers.getTextContentBox,
+            getPointSize: updateTriggers.getSize,
+            getPointPlacement: {
+              getPointSize: updateTriggers.getSize,
+              getIcon: updateTriggers.getIcon,
+              iconMapping
+            },
             getTextAnchor: ['middle'],
             getAlignmentBaseline: [labelPosition]
           }

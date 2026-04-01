@@ -18,6 +18,7 @@ The core layers are the most stable and supported deck.gl layers.
   - [GeoJsonLayer](./geojson-layer.md)
   - [GridCellLayer](./grid-cell-layer.md)
   - [IconLayer](./icon-layer.md)
+  - [LabeledIconLayer](./labeled-icon-layer.md)
   - [LineLayer](./line-layer.md)
   - [LabeledScatterplotLayer](./labeled-scatterplot-layer.md)
   - [PathLayer](./path-layer.md)

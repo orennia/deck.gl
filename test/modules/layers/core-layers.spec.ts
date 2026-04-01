@@ -6,6 +6,7 @@
 import test from 'tape-promise/tape';
 
 import {
+  LabeledIconLayer,
   ScatterplotLayer,
   LabeledScatterplotLayer,
   IconLayer,
@@ -31,6 +32,7 @@ const GRID = [
 ];
 
 test('Core layer exports', t => {
+  t.ok(LabeledIconLayer, 'LabeledIconLayer symbol imported');
   t.ok(LabeledScatterplotLayer, 'LabeledScatterplotLayer symbol imported');
   t.end();
 });

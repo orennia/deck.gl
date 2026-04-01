@@ -109,6 +109,7 @@
           "api-reference/aggregation-layers/heatmap-layer",
           "api-reference/aggregation-layers/hexagon-layer",
           "api-reference/layers/icon-layer",
+          "api-reference/layers/labeled-icon-layer",
           "api-reference/layers/line-layer",
           "api-reference/layers/labeled-scatterplot-layer",
           "api-reference/geo-layers/mvt-layer",

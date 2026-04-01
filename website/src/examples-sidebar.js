@@ -31,6 +31,7 @@ const sidebars = {
         'heatmap-layer',
         'hexagon-layer',
         'icon-layer',
+        'labeled-icon-layer',
         'line-layer',
         'labeled-scatterplot-layer',
         'point-cloud-layer',
