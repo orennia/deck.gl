@@ -775,7 +775,6 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       changedAttributes = attributeManager.getAttributes();
     }
 
-    // @ts-expect-error luma.gl type issue
     const excludeAttributes = model.userData?.excludeAttributes || {};
     const attributeBuffers: Record<string, Buffer> = {};
     const constantAttributes: Record<string, TypedArray> = {};
