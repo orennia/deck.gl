@@ -59,6 +59,9 @@ float collision_isVisible(vec2 texCoords, vec3 pickingColor) {
 const inject = {
   'vs:#decl': /* glsl */ `
   float collision_fade = 1.0;
+  float collision_fade_override = -1.0;
+  vec2 collision_texCoords_override = vec2(0.0);
+  bool collision_use_texCoords_override = false;
 `,
   'vs:DECKGL_FILTER_GL_POSITION': /* glsl */ `
   if (collision.sort) {
@@ -67,9 +70,12 @@ const inject = {
   }
 
   if (collision.enabled) {
-    vec4 collision_common_position = project_position(vec4(geometry.worldPosition, 1.0));
-    vec2 collision_texCoords = collision_getCoords(collision_common_position);
-    collision_fade = collision_isVisible(collision_texCoords, geometry.pickingColor / 255.0);
+    vec2 collision_texCoords = collision_use_texCoords_override
+      ? collision_texCoords_override
+      : collision_getCoords(project_position(vec4(geometry.worldPosition, 1.0)));
+    collision_fade = collision_fade_override >= 0.0
+      ? collision_fade_override
+      : collision_isVisible(collision_texCoords, geometry.pickingColor / 255.0);
     if (collision_fade < 0.0001) {
       // Position outside clip space bounds to discard
       position = vec4(0.0, 0.0, 2.0, 1.0);

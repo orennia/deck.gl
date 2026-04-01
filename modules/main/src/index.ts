@@ -97,6 +97,7 @@ export {
   PolygonLayer,
   SolidPolygonLayer,
   GeoJsonLayer,
+  LabeledScatterplotLayer,
   TextLayer
 } from '@deck.gl/layers';
 
@@ -179,6 +180,7 @@ export type {
   PolygonLayerProps,
   GeoJsonLayerProps,
   GridCellLayerProps,
+  LabeledScatterplotLayerProps,
   TextLayerProps,
   MultiIconLayerProps,
   PointCloudLayerProps,

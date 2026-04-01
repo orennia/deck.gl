@@ -6,7 +6,7 @@ import test from 'tape-promise/tape';
 import {testLayer, generateLayerTests, getLayerUniforms} from '@deck.gl/test-utils';
 import {geojsonToBinary} from '@loaders.gl/gis';
 
-import {GeoJsonLayer} from 'deck.gl';
+import {GeoJsonLayer} from '@deck.gl/layers';
 import {DataFilterExtension} from '@deck.gl/extensions';
 
 import * as FIXTURES from 'deck.gl-test/data';
@@ -212,6 +212,65 @@ test('GeoJsonLayer#tests', t => {
       data: binaryDataWithGetFilterValue,
       filterRange: [1, 1],
       extensions: [new DataFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#circle-label',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(layer => layer.id === 'GeoJsonLayer-points-circle-label');
+      t.ok(labeledLayer, 'creates circle-label point sublayer');
+      t.is(labeledLayer!.props.labelPosition, 'bottom', 'forwards label position');
+      t.is(labeledLayer!.props.collisionGroup, 'poi-labels', 'forwards collision group');
+
+      const labeledSubLayers = labeledLayer!.getSubLayers();
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('circles')),
+        'renders circles inside circle-label layer'
+      );
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('labels')),
+        'renders labels inside circle-label layer'
+      );
+    },
+    props: {
+      pointType: 'circle-label',
+      getText: f => f.properties.name || 'label',
+      getPointRadius: () => 6,
+      textLabelPosition: 'bottom',
+      textCollisionGroup: 'poi-labels',
+      getTextCollisionPriority: (_, {index}) => index,
+      extensions: [new CollisionFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#circle-label binary',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(
+        layer => layer.id === 'GeoJsonLayer-points-circle-label'
+      )!;
+      const labeledSubLayers = labeledLayer.getSubLayers();
+      const circles = labeledSubLayers.find(layer => layer.id.endsWith('circles'))!;
+      const labels = labeledSubLayers.find(layer => layer.id.endsWith('labels'))!;
+
+      t.ok(
+        circles.props.data.attributes.instancePickingColors,
+        'circle sublayer keeps binary picking colors'
+      );
+      t.notOk(
+        labels.props.data.attributes.instancePickingColors,
+        'label sublayer strips binary picking colors'
+      );
+    },
+    props: {
+      data: binaryData,
+      pointType: 'circle-label',
+      getText: f => String(f.properties.cartodb_id || 'label'),
+      getPointRadius: () => 6,
+      extensions: [new CollisionFilterExtension()]
     }
   });
 

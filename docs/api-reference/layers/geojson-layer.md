@@ -203,10 +203,13 @@ The `GeoJSONLayer` accepts any of the following formats passed to the `data` pro
 How to render `Point` and `MultiPoint` features in the data. Supported types are:
 
 - `circle`
+- `circle-label`
 - `icon`
 - `text`
 
 To use more than one type, join the names with `+`, for example `pointType: 'icon+text'`.
+
+`circle-label` is a composite point mode built on [LabeledScatterplotLayer](./labeled-scatterplot-layer.md). It should be used instead of combining `circle` and `text` manually when you want labels positioned outside their circles.
 
 ### Fill Options
 
@@ -423,6 +426,34 @@ The following props are forwarded to an `IconLayer` if `pointType` is `'icon'`.
 | `iconBillboard` | `true` | [billboard](./icon-layer.md#billboard) |
 | `iconAlphaCutoff` | `0.05` | [alphaCutoff](./icon-layer.md#alphacutoff) |
 
+### pointType:circle-label Options
+
+The following props are forwarded to a [LabeledScatterplotLayer](./labeled-scatterplot-layer.md) if `pointType` is `'circle-label'`.
+
+Circle styling uses the same props as [pointType:circle Options](#pointtypecircle-options). Text styling uses the same props as [pointType:text Options](#pointtypetext-options), with these additional `circle-label`-specific props:
+
+| Prop name | Default value | LabeledScatterplotLayer equivalent |
+| --------- | ------------- | ---------------------------------- |
+| `textLabelPosition` | `'top'` | [labelPosition](./labeled-scatterplot-layer.md#labelposition) |
+| `textLabelPadding` | `4` | [labelPadding](./labeled-scatterplot-layer.md#labelpadding) |
+| `textCollisionEnabled` | `true` | [collisionEnabled](./labeled-scatterplot-layer.md#collisionenabled) |
+| `textCollisionGroup` | `'default'` | [collisionGroup](./labeled-scatterplot-layer.md#collisiongroup) |
+| `textCollisionTestProps` | `{}` | [collisionTestProps](./labeled-scatterplot-layer.md#collisiontestprops) |
+| `getTextCollisionPriority` | `0` | [getCollisionPriority](./labeled-scatterplot-layer.md#getcollisionpriority) |
+
+To enable label collision filtering, supply a [CollisionFilterExtension](../extensions/collision-filter-extension.md) in the parent layer's `extensions` prop:
+
+```js
+import {GeoJsonLayer} from '@deck.gl/layers';
+import {CollisionFilterExtension} from '@deck.gl/extensions';
+
+new GeoJsonLayer({
+  pointType: 'circle-label',
+  textCollisionEnabled: true,
+  extensions: [new CollisionFilterExtension()]
+});
+```
+
 ### pointType:text Options
 
 The following props are forwarded to a `TextLayer` if `pointType` is `'text'`.
@@ -464,6 +495,7 @@ The GeoJsonLayer renders the following sublayers:
 * `polygons-stroke` - a [PathLayer](./path-layer.md) rendering the outline of all the `Polygon` and `MultiPolygon` features. Only rendered if `stroked: true` and `extruded: false`.
 * `linestrings` - a [PathLayer](./path-layer.md) rendering all the `LineString` and `MultiLineString` features.
 * `points-circle` - a [ScatterplotLayer](./scatterplot-layer.md) rendering all the `Point` and `MultiPoint` features if `pointType` is `'circle'`.
+* `points-circle-label` - a [LabeledScatterplotLayer](./labeled-scatterplot-layer.md) rendering all the `Point` and `MultiPoint` features if `pointType` is `'circle-label'`.
 * `points-icon` - an [IconLayer](./icon-layer.md) rendering all the `Point` and `MultiPoint` features if `pointType` is `'icon'`.
 * `points-text` - a [TextLayer](./text-layer.md) rendering all the `Point` and `MultiPoint` features if `pointType` is `'text'`.
 
@@ -666,4 +698,4 @@ In order to pass [pass attributes directly](../../developer-guide/performance.md
 
 ## Source
 
-[modules/layers/src/geojson-layer](https://github.com/visgl/deck.gl/tree/9.2-release/modules/layers/src/geojson-layer)
+[modules/layers/src/geojson-layer](https://github.com/visgl/deck.gl/tree/master/modules/layers/src/geojson-layer)

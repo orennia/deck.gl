@@ -5,6 +5,7 @@
 import {CompositeLayer, Layer} from '@deck.gl/core';
 
 import IconLayer from '../icon-layer/icon-layer';
+import LabeledScatterplotLayer from '../labeled-scatterplot-layer/labeled-scatterplot-layer';
 import ScatterplotLayer from '../scatterplot-layer/scatterplot-layer';
 import TextLayer from '../text-layer/text-layer';
 import PathLayer from '../path-layer/path-layer';
@@ -32,6 +33,60 @@ export const POINT_LAYER = {
       getLineColor: 'getLineColor',
       getLineWidth: 'getLineWidth',
       getPointRadius: 'getRadius'
+    }
+  },
+  'circle-label': {
+    type: LabeledScatterplotLayer,
+    props: {
+      filled: 'filled',
+      stroked: 'stroked',
+
+      lineWidthMaxPixels: 'lineWidthMaxPixels',
+      lineWidthMinPixels: 'lineWidthMinPixels',
+      lineWidthScale: 'lineWidthScale',
+      lineWidthUnits: 'lineWidthUnits',
+      pointRadiusMaxPixels: 'radiusMaxPixels',
+      pointRadiusMinPixels: 'radiusMinPixels',
+      pointRadiusScale: 'radiusScale',
+      pointRadiusUnits: 'radiusUnits',
+      pointAntialiasing: 'antialiasing',
+      pointBillboard: 'pointBillboard',
+
+      textSizeMaxPixels: 'sizeMaxPixels',
+      textSizeMinPixels: 'sizeMinPixels',
+      textSizeScale: 'sizeScale',
+      textSizeUnits: 'sizeUnits',
+      textBackground: 'background',
+      textBackgroundPadding: 'backgroundPadding',
+      textFontFamily: 'fontFamily',
+      textFontWeight: 'fontWeight',
+      textLineHeight: 'lineHeight',
+      textMaxWidth: 'maxWidth',
+      textOutlineColor: 'outlineColor',
+      textOutlineWidth: 'outlineWidth',
+      textWordBreak: 'wordBreak',
+      textCharacterSet: 'characterSet',
+      textBillboard: 'textBillboard',
+      textFontSettings: 'fontSettings',
+      textLabelPosition: 'labelPosition',
+      textLabelPadding: 'labelPadding',
+      textCollisionEnabled: 'collisionEnabled',
+      textCollisionGroup: 'collisionGroup',
+      textCollisionTestProps: 'collisionTestProps',
+
+      getFillColor: 'getFillColor',
+      getLineColor: 'getLineColor',
+      getLineWidth: 'getLineWidth',
+      getPointRadius: 'getRadius',
+      getText: 'getText',
+      getTextAngle: 'getAngle',
+      getTextColor: 'getColor',
+      getTextPixelOffset: 'getPixelOffset',
+      getTextSize: 'getSize',
+      getTextBackgroundColor: 'getBackgroundColor',
+      getTextBorderColor: 'getBorderColor',
+      getTextBorderWidth: 'getBorderWidth',
+      getTextCollisionPriority: 'getCollisionPriority'
     }
   },
   icon: {

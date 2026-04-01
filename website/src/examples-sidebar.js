@@ -32,6 +32,7 @@ const sidebars = {
         'hexagon-layer',
         'icon-layer',
         'line-layer',
+        'labeled-scatterplot-layer',
         'point-cloud-layer',
         'scatterplot-layer',
         'scenegraph-layer',

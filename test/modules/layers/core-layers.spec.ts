@@ -7,6 +7,7 @@ import test from 'tape-promise/tape';
 
 import {
   ScatterplotLayer,
+  LabeledScatterplotLayer,
   IconLayer,
   ArcLayer,
   LineLayer,
@@ -28,6 +29,11 @@ const GRID = [
   {position: [37, 122.8]},
   {position: [37.1, 122.8]}
 ];
+
+test('Core layer exports', t => {
+  t.ok(LabeledScatterplotLayer, 'LabeledScatterplotLayer symbol imported');
+  t.end();
+});
 
 test('ScreenGridLayer', t => {
   const testCases = generateLayerTests({
