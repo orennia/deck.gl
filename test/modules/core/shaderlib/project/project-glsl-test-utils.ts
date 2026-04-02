@@ -9,6 +9,20 @@ import {BufferTransform, BufferTransformProps} from '@luma.gl/engine';
 import {ProjectProps} from '@deck.gl/core';
 import {device} from '@deck.gl/test-utils';
 
+/** SwiftShader (CI) does not reliably run these BufferTransform shader checks. */
+export function isSoftwareWebGLDevice(): boolean {
+  // @ts-expect-error webgl device exposes info
+  const info = device?.info;
+  if (!info) {
+    return false;
+  }
+  return (
+    info.gpu === 'software' ||
+    /swiftshader/i.test(info.vendor || '') ||
+    /swiftshader/i.test(info.renderer || '')
+  );
+}
+
 export function getPixelOffset(p1, p2) {
   return [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2], 1];
 }

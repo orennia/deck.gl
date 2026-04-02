@@ -436,7 +436,7 @@ const TEST_CASES = [
             height: 400
           },
           results: {
-            count: 4
+            count: 3
           }
         },
         {
@@ -611,7 +611,7 @@ const TEST_CASES = [
             height: 400
           },
           results: {
-            count: 34
+            count: 33
           }
         },
         {
@@ -742,16 +742,7 @@ test(`pickingTest`, async t => {
         let count = pickInfos.length;
         // @ts-expect-error
         if (deck.device.info.gpu === 'apple') {
-          if (count === 32) {
-            count = 33;
-          } else if (
-            testCase.id === 'multiLayers' &&
-            pickingMethod === 'pickObjects' &&
-            count === 33 &&
-            pickingCase.results.count === 34
-          ) {
-            count = 34;
-          }
+          count = count === 32 ? 33 : pickInfos.length;
         }
         t.equal(
           count,

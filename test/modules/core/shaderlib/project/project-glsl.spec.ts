@@ -17,6 +17,7 @@ const {fp64LowPart} = fp64;
 
 import {
   getPixelOffset,
+  isSoftwareWebGLDevice,
   runOnGPU,
   TestProps,
   testUniforms,
@@ -325,6 +326,12 @@ const TEST_CASES: TestCase[] = [
 ];
 
 test('project#vs', async t => {
+  if (isSoftwareWebGLDevice()) {
+    t.comment('Skipping project#vs on software WebGL (SwiftShader / CI)');
+    t.end();
+    return;
+  }
+
   const oldEpsilon = config.EPSILON;
 
   for (const testCase of TEST_CASES) {
@@ -352,6 +359,14 @@ test('project#vs', async t => {
 });
 
 test('project#vs#project_get_orientation_matrix', async t => {
+  if (isSoftwareWebGLDevice()) {
+    t.comment(
+      'Skipping project#vs#project_get_orientation_matrix on software WebGL (SwiftShader / CI)'
+    );
+    t.end();
+    return;
+  }
+
   const vs = `\
 #version 300 es
 

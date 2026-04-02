@@ -223,21 +223,20 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
     }
 
     // internalState is always defined during updateState
-    const isIconAtlasLoading = this.internalState!.isAsyncPropLoading('iconAtlas');
-    const isIconMappingLoading = this.internalState!.isAsyncPropLoading('iconMapping');
-    const hasPrepackedConfig =
-      iconAtlas != null || iconMapping != null || isIconAtlasLoading || isIconMappingLoading;
+    const hasIconAtlasProp = this.internalState!.hasAsyncProp('iconAtlas');
+    const hasIconMappingProp = this.internalState!.hasAsyncProp('iconMapping');
+    const hasPrepackedConfig = hasIconAtlasProp || hasIconMappingProp;
     iconManager.setProps({
       loadOptions: props.loadOptions,
       autoPacking: !hasPrepackedConfig,
-      iconAtlas: typeof iconAtlas === 'string' ? null : iconAtlas,
-      iconMapping: hasPrepackedConfig && typeof iconMapping !== 'string' ? iconMapping : null,
+      iconAtlas: hasIconAtlasProp && typeof iconAtlas !== 'string' ? iconAtlas : null,
+      iconMapping: hasIconMappingProp && typeof iconMapping !== 'string' ? iconMapping : null,
       textureParameters
     });
 
     // prepacked iconAtlas from user
     if (hasPrepackedConfig) {
-      if (oldProps.iconMapping !== props.iconMapping) {
+      if (hasIconMappingProp && oldProps.iconMapping !== props.iconMapping) {
         attributeManager!.invalidate('getIcon');
       }
     } else if (

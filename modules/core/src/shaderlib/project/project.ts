@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
+import {fp32} from '@luma.gl/shadertools';
 import type {ShaderModule} from '@luma.gl/shadertools';
 import geometry from '../misc/geometry';
 import {getUniformsFromViewport} from './viewport-uniforms';
@@ -21,7 +22,7 @@ function getUniforms(opts: Partial<ProjectProps> = INITIAL_MODULE_OPTIONS) {
 
 export default {
   name: 'project',
-  dependencies: [geometry],
+  dependencies: [fp32, geometry],
   source: projectWGSL,
   vs: projectGLSL,
   getUniforms,
