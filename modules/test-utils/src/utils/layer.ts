@@ -10,12 +10,18 @@ import {Layer} from '@deck.gl/core';
  */
 export function getLayerUniforms(layer: Layer, blockName?: string): Record<string, UniformValue> {
   const uniforms = {};
-  const uniformStore = layer.getModels()[0]._uniformStore;
+  const model = layer.getModels()[0];
+  if (!model) {
+    return uniforms;
+  }
+  const uniformStore = model._uniformStore;
   const uniformBlocks = blockName
     ? [uniformStore.uniformBlocks.get(blockName)]
     : uniformStore.uniformBlocks.values();
   for (const block of uniformBlocks) {
-    Object.assign(uniforms, block!.uniforms);
+    if (block) {
+      Object.assign(uniforms, block.uniforms);
+    }
   }
 
   return uniforms;

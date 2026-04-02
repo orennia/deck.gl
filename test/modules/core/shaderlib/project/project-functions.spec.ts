@@ -15,7 +15,13 @@ import {fp64} from '@luma.gl/shadertools';
 const {fp64LowPart} = fp64;
 import {projectPosition} from '@deck.gl/core/shaderlib/project/project-functions';
 import {equals, config, NumberArray3} from '@math.gl/core';
-import {runOnGPU, TestProps, testUniforms, verifyGPUResult} from './project-glsl-test-utils';
+import {
+  isSoftwareWebGLDevice,
+  runOnGPU,
+  TestProps,
+  testUniforms,
+  verifyGPUResult
+} from './project-glsl-test-utils';
 
 const TEST_VIEWPORT = new WebMercatorViewport({
   longitude: -122.45,
@@ -146,6 +152,14 @@ test('project#projectPosition', t => {
 });
 
 test('project#projectPosition vs project_position', async t => {
+  if (isSoftwareWebGLDevice()) {
+    t.comment(
+      'Skipping project#projectPosition vs project_position on software WebGL (SwiftShader / CI)'
+    );
+    t.end();
+    return;
+  }
+
   config.EPSILON = 1e-5;
 
   const vs = `\

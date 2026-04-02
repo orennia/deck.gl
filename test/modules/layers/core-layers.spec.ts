@@ -6,7 +6,9 @@
 import test from 'tape-promise/tape';
 
 import {
+  LabeledIconLayer,
   ScatterplotLayer,
+  LabeledScatterplotLayer,
   IconLayer,
   ArcLayer,
   LineLayer,
@@ -20,7 +22,9 @@ import {
 
 import * as FIXTURES from 'deck.gl-test/data';
 
-import {testLayer, generateLayerTests, getLayerUniforms} from '@deck.gl/test-utils';
+import {testLayer, testLayerAsync, generateLayerTests, getLayerUniforms} from '@deck.gl/test-utils';
+import {makeSpy} from '@probe.gl/test-utils';
+import IconManager from '../../../modules/layers/src/icon-layer/icon-manager';
 
 const GRID = [
   {position: [37, 122]},
@@ -28,6 +32,12 @@ const GRID = [
   {position: [37, 122.8]},
   {position: [37.1, 122.8]}
 ];
+
+test('Core layer exports', t => {
+  t.ok(LabeledIconLayer, 'LabeledIconLayer symbol imported');
+  t.ok(LabeledScatterplotLayer, 'LabeledScatterplotLayer symbol imported');
+  t.end();
+});
 
 test('ScreenGridLayer', t => {
   const testCases = generateLayerTests({
@@ -181,6 +191,43 @@ test('IconLayer', t => {
 
   testLayer({Layer: IconLayer, testCases, onError: t.notOk});
 
+  t.end();
+});
+
+test('IconLayer#auto-packing without prepacked props', async t => {
+  const packIconsSpy = makeSpy(IconManager.prototype, 'packIcons');
+  packIconsSpy.returns(undefined);
+
+  try {
+    await testLayerAsync({
+      Layer: IconLayer,
+      testCases: [
+        {
+          title: 'auto-packing without prepacked props',
+          props: {
+            data: FIXTURES.points.slice(0, 1),
+            getPosition: (d: any) => d.COORDINATES,
+            getSize: 1,
+            getIcon: () => ({
+              url: 'icon.png',
+              width: 16,
+              height: 16,
+              anchorY: 16
+            })
+          },
+          onAfterUpdate: ({layer}) => {
+            t.ok(layer.state.model, 'creates a model for auto-packed icons');
+            t.ok(packIconsSpy.called, 'calls packIcons when no prepacked props are supplied');
+          }
+        }
+      ],
+      onError: t.notOk
+    });
+  } finally {
+    packIconsSpy.restore();
+  }
+
+  t.ok(packIconsSpy.called, 'auto-packed icons use the icon manager packing path');
   t.end();
 });
 

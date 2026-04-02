@@ -305,12 +305,20 @@ export default class LayerManager {
     for (const newLayer of newLayers) {
       newLayer.context = this.context;
 
-      // Given a new coming layer, find its matching old layer (if any)
-      const oldLayer = oldLayerMap[newLayer.id];
-      if (oldLayer === null) {
+      // Given a new incoming layer, find its matching old layer (if any)
+      // We only transfer state between layers of the same constructor.
+      const oldLayerFromMap = oldLayerMap[newLayer.id];
+      if (oldLayerFromMap === null) {
         // null, rather than undefined, means this id was originally there
         log.warn(`Multiple new layers with same id ${newLayer.id}`)();
       }
+      if (oldLayerFromMap && oldLayerFromMap.constructor !== newLayer.constructor) {
+        this._finalizeLayer(oldLayerFromMap);
+      }
+      const oldLayer =
+        oldLayerFromMap && oldLayerFromMap.constructor === newLayer.constructor
+          ? oldLayerFromMap
+          : null;
       // Remove the old layer from candidates, as it has been matched with this layer
       oldLayerMap[newLayer.id] = null;
 

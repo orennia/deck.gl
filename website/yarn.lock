@@ -2387,7 +2387,7 @@
     lz4js "^0.2.0"
     zstd-codec "^0.1"
 
-"@loaders.gl/core@^4.3.4":
+"@loaders.gl/core@~4.3.4":
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/@loaders.gl/core/-/core-4.3.4.tgz#f6495a375dec5f33ed631c7d116e7e9292bccb0b"
   integrity sha512-cG0C5fMZ1jyW6WCsf4LoHGvaIAJCEVA/ioqKoYRwoSfXkOf+17KupK1OUQyUCw5XoRn+oWA1FulJQOYlXnb9Gw==
@@ -2416,7 +2416,7 @@
     "@loaders.gl/worker-utils" "4.3.4"
     draco3d "1.5.7"
 
-"@loaders.gl/i3s@^4.3.4":
+"@loaders.gl/i3s@~4.3.4":
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/@loaders.gl/i3s/-/i3s-4.3.4.tgz#88003710c0a5f2492e288e41b61c28c4f173a313"
   integrity sha512-U71BwsLZ6wqDUxBWPWwdsAhZEwYjEluixmEPdif40KD318YoPEU7CU+w/gEE6JhlTijDhmEgsFCpRC+yvs15qw==
@@ -2442,7 +2442,7 @@
   dependencies:
     "@loaders.gl/loader-utils" "4.3.4"
 
-"@loaders.gl/las@^4.3.4":
+"@loaders.gl/las@~4.3.4":
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/@loaders.gl/las/-/las-4.3.4.tgz#22a479b81ea9491309ba6cd7b12ea042911d00d2"
   integrity sha512-KGyVuSQwpnVO/RCHYF8ITkDd7DpXnhAPDpgGMCBrpWvBubAbIY38oP0uGecNO/HVfRVAovDEobZICN3uQx2Weg==
@@ -2470,7 +2470,7 @@
     "@loaders.gl/loader-utils" "4.3.4"
     "@math.gl/core" "^4.1.0"
 
-"@loaders.gl/obj@^4.3.4":
+"@loaders.gl/obj@~4.3.4":
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/@loaders.gl/obj/-/obj-4.3.4.tgz#fa14f9ffdc1502ea01ff152d038315234b0454d2"
   integrity sha512-Rdn+NHjLI0jKYrKNicJuQJohnHh7QAv4szCji8eafYYMrVtSIonNozBXUfe/c4V7HL/FVvvHCkfC66rvLvayaQ==
@@ -2478,7 +2478,7 @@
     "@loaders.gl/loader-utils" "4.3.4"
     "@loaders.gl/schema" "4.3.4"
 
-"@loaders.gl/ply@^4.3.4":
+"@loaders.gl/ply@~4.3.4":
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/@loaders.gl/ply/-/ply-4.3.4.tgz#20fc9d8eb7b97ba39eed865d16c826b06a89bc19"
   integrity sha512-9/ijcIK2xP0cgSM3BmoS5JXfRXe6PKuIGHNteqJHhrQ5nwx1UrupmsYPXj58FykYVZx6PTBshMs9OmIXvPHduw==

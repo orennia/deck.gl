@@ -11,6 +11,8 @@ import {
   GeoJsonLayer,
   GridCellLayer,
   IconLayer,
+  LabeledIconLayer,
+  LabeledScatterplotLayer,
   LineLayer,
   PathLayer,
   PointCloudLayer,
@@ -88,6 +90,66 @@ export const GeoJsonLayerDemo = makeLayerDemo({
     getPointRadius: 4,
     getLineWidth: 20,
     getElevation: 30
+  }`
+});
+
+export const LabeledScatterplotLayerDemo = makeLayerDemo({
+  Layer: LabeledScatterplotLayer,
+  getTooltip: '({object}) => object && `${object.name}\\n${object.address}`',
+  props: `{
+    data: '${DATA_URI}/bart-stations.json',
+    pickable: true,
+    getPosition: d => d.coordinates,
+    getRadius: d => Math.sqrt(d.exits),
+    radiusScale: 2,
+    radiusMinPixels: 4,
+    radiusMaxPixels: 18,
+    getFillColor: [255, 140, 0],
+    getLineColor: [60, 60, 60],
+    getLineWidth: 1,
+    stroked: true,
+    getText: d => d.name,
+    getSize: 1,
+    sizeScale: 14,
+    sizeMinPixels: 14,
+    sizeMaxPixels: 14,
+    labelPosition: 'top',
+    labelPadding: 6,
+    background: true,
+    getBackgroundColor: [255, 255, 255, 230],
+    getBorderColor: [255, 140, 0, 255],
+    getBorderWidth: 1,
+    backgroundPadding: [8, 4]
+  }`
+});
+
+export const LabeledIconLayerDemo = makeLayerDemo({
+  Layer: LabeledIconLayer,
+  getTooltip: '({object}) => object && `${object.name}\\n${object.address}`',
+  props: `{
+    data: '${DATA_URI}/bart-stations.json',
+    pickable: true,
+    iconAtlas: '${DATA_URI}/icon-atlas.png',
+    iconMapping: '${DATA_URI}/icon-atlas.json',
+    getPosition: d => d.coordinates,
+    getIcon: d => 'marker',
+    getColor: [255, 140, 0],
+    getSize: 1,
+    sizeScale: 18,
+    sizeMinPixels: 18,
+    sizeMaxPixels: 18,
+    getText: d => d.name,
+    getTextSize: 1,
+    textSizeScale: 14,
+    textSizeMinPixels: 14,
+    textSizeMaxPixels: 14,
+    labelPosition: 'top',
+    labelPadding: 6,
+    textBackground: true,
+    getTextBackgroundColor: [255, 255, 255, 230],
+    getTextBorderColor: [255, 140, 0, 255],
+    getTextBorderWidth: 1,
+    textBackgroundPadding: [8, 4]
   }`
 });
 

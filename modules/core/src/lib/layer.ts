@@ -2,43 +2,43 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
+import {load} from '@loaders.gl/core';
+import type {Loader} from '@loaders.gl/loader-utils';
 /* eslint-disable react/no-direct-mutation-state */
-import {Buffer, Parameters as LumaParameters, TypedArray} from '@luma.gl/core';
+import {
+  Buffer,
+  type Parameters as LumaParameters,
+  type RenderPass,
+  type TypedArray
+} from '@luma.gl/core';
+import type {Model} from '@luma.gl/engine';
+import type {PickingProps} from '@luma.gl/shadertools';
 import {WebGLDevice} from '@luma.gl/webgl';
-import {COORDINATE_SYSTEM} from './constants';
-import AttributeManager from './attribute/attribute-manager';
-import UniformTransitionManager from './uniform-transition-manager';
+import {worldToPixels} from '@math.gl/web-mercator';
+import debug from '../debug/index';
+import Component from '../lifecycle/component';
+import {LIFECYCLE, type Lifecycle} from '../lifecycle/constants';
+import type {DefaultProps} from '../lifecycle/prop-types';
 import {diffProps, validateProps} from '../lifecycle/props';
-import {LIFECYCLE, Lifecycle} from '../lifecycle/constants';
+import {getWorldPosition, projectPosition} from '../shaderlib/project/project-functions';
+import type {LayerData, LayerProps} from '../types/layer-props';
+import type {NumericArray} from '../types/types';
+import assert from '../utils/assert';
 import {count} from '../utils/count';
 import log from '../utils/log';
-import debug from '../debug/index';
-import assert from '../utils/assert';
 import memoize from '../utils/memoize';
 import {mergeShaders} from '../utils/shader';
-import {projectPosition, getWorldPosition} from '../shaderlib/project/project-functions';
 import typedArrayManager from '../utils/typed-array-manager';
-
-import Component from '../lifecycle/component';
-import LayerState, {ChangeFlags} from './layer-state';
-
-import {worldToPixels} from '@math.gl/web-mercator';
-
-import {load} from '@loaders.gl/core';
-
-import type {Loader} from '@loaders.gl/loader-utils';
-import type {CoordinateSystem} from './constants';
-import type Attribute from './attribute/attribute';
-import type {Model} from '@luma.gl/engine';
-import type {PickingInfo, GetPickingInfoParams} from './picking/pick-info';
 import type Viewport from '../viewports/viewport';
-import type {NumericArray} from '../types/types';
-import type {DefaultProps} from '../lifecycle/prop-types';
-import type {LayerData, LayerProps} from '../types/layer-props';
-import type {LayerContext} from './layer-manager';
+import type Attribute from './attribute/attribute';
 import type {BinaryAttribute} from './attribute/attribute';
-import {RenderPass} from '@luma.gl/core';
-import {PickingProps} from '@luma.gl/shadertools';
+import AttributeManager from './attribute/attribute-manager';
+import type {CoordinateSystem} from './constants';
+import {COORDINATE_SYSTEM} from './constants';
+import type {LayerContext} from './layer-manager';
+import LayerState, {type ChangeFlags} from './layer-state';
+import type {GetPickingInfoParams, PickingInfo} from './picking/pick-info';
+import UniformTransitionManager from './uniform-transition-manager';
 
 const TRACE_CHANGE_FLAG = 'layer.changeFlag';
 const TRACE_INITIALIZE = 'layer.initialize';
@@ -65,7 +65,7 @@ const defaultProps: DefaultProps<LayerProps> = {
   dataComparator: {type: 'function', value: null, optional: true},
   _dataDiff: {
     type: 'function',
-    // @ts-ignore __diff is not defined on data
+    // @ts-expect-error __diff is not defined on data
     value: data => data && data.__diff,
     optional: true
   },
@@ -107,7 +107,11 @@ const defaultProps: DefaultProps<LayerProps> = {
 
       if (!inResourceManager && !loadOptions) {
         // If there is no layer-specific load options, then attempt to cache this resource in the data manager
-        resourceManager.add({resourceId: url, data: load(url, loaders), persistent: false});
+        resourceManager.add({
+          resourceId: url,
+          data: load(url, loaders),
+          persistent: false
+        });
         inResourceManager = true;
       }
       if (inResourceManager) {
@@ -188,7 +192,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
   static layerName: string = 'Layer';
 
   static override get componentName() {
-    return Object.prototype.hasOwnProperty.call(this, 'layerName') ? this.layerName : '';
+    return this.layerName;
   }
 
   internalState: LayerState<this> | null = null;
@@ -456,7 +460,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       disableWarnings: true,
       modules: this.context.defaultShaderModules
     });
-    for (const extension of this.props.extensions) {
+    for (const extension of this._getExtensions()) {
       shaders = mergeShaders(shaders, extension.getShaders.call(this, extension));
     }
     return shaders;
@@ -490,7 +494,9 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       const needsPickingBuffer =
         Number.isInteger(props.highlightedObjectIndex) ||
         Boolean(props.pickable) ||
-        props.extensions.some(extension => extension.getNeedsPickingBuffer.call(this, extension));
+        this._getExtensions().some(extension =>
+          extension.getNeedsPickingBuffer.call(this, extension)
+        );
 
       // Only generate picking buffer if needed
       if (hasPickingBuffer !== needsPickingBuffer) {
@@ -669,12 +675,14 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       startIndices,
       props,
       transitions: props.transitions,
-      // @ts-ignore (TS2339) property attribute is not present on some acceptable data types
+      // @ts-expect-error (TS2339) property attribute is not present on some acceptable data types
       buffers: props.data.attributes,
       context: this
     });
 
-    const changedAttributes = attributeManager.getChangedAttributes({clearChangedFlags: true});
+    const changedAttributes = attributeManager.getChangedAttributes({
+      clearChangedFlags: true
+    });
     this.updateAttributes(changedAttributes);
   }
 
@@ -688,7 +696,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
 
   /** Update uniform (prop) transitions. This is called in updateState, may result in model updates. */
   private _updateUniformTransition(): Layer<PropsT>['props'] {
-    // @ts-ignore (TS2339) internalState is alwasy defined when this method is called
+    // @ts-expect-error (TS2339) internalState is alwasy defined when this method is called
     const {uniformTransitions} = this.internalState;
     if (uniformTransitions.active) {
       // clone props
@@ -716,7 +724,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     const cacheSize = Math.floor(pickingColorCache.length / 4);
 
     // Record when using the picking buffer cache, so that layers can always point at the most recently allocated cache
-    // @ts-ignore (TS2531) internalState is always defined when this method is called
+    // @ts-expect-error (TS2531) internalState is always defined when this method is called
     this.internalState.usesPickingColorCache = true;
 
     if (cacheSize < numInstances) {
@@ -767,7 +775,6 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       changedAttributes = attributeManager.getAttributes();
     }
 
-    // @ts-ignore luma.gl type issue
     const excludeAttributes = model.userData?.excludeAttributes || {};
     const attributeBuffers: Record<string, Buffer> = {};
     const constantAttributes: Record<string, TypedArray> = {};
@@ -804,7 +811,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       return;
     }
 
-    // @ts-ignore (TS2531) this method is only called internally with attributeManager defined
+    // @ts-expect-error (TS2531) this method is only called internally with attributeManager defined
     const {pickingColors, instancePickingColors} = this.getAttributeManager().attributes;
     const colors = pickingColors || instancePickingColors;
     const externalColorAttribute =
@@ -829,7 +836,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
 
   // TODO - simplify subclassing interface
   protected _disablePickingIndex(objectIndex: number): void {
-    // @ts-ignore (TS2531) this method is only called internally with attributeManager defined
+    // @ts-expect-error (TS2531) this method is only called internally with attributeManager defined
     const {pickingColors, instancePickingColors} = this.getAttributeManager().attributes;
     const colors = pickingColors || instancePickingColors;
     if (!colors) {
@@ -845,7 +852,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
 
   /** (Internal) Re-enable all picking indices after multi-depth picking */
   restorePickingColors(): void {
-    // @ts-ignore (TS2531) this method is only called internally with attributeManager defined
+    // @ts-expect-error (TS2531) this method is only called internally with attributeManager defined
     const {pickingColors, instancePickingColors} = this.getAttributeManager().attributes;
     const colors = pickingColors || instancePickingColors;
     if (!colors) {
@@ -853,7 +860,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     }
     // The picking color cache may have been freed and then reallocated. This ensures we read from the currently allocated cache.
     if (
-      // @ts-ignore (TS2531) this method is only called internally with internalState defined
+      // @ts-expect-error (TS2531) this method is only called internally with internalState defined
       this.internalState.usesPickingColorCache &&
       (colors.value as Uint8ClampedArray).buffer !== pickingColorCache.buffer
     ) {
@@ -916,7 +923,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     this.initializeState(this.context);
 
     // Initialize extensions
-    for (const extension of this.props.extensions) {
+    for (const extension of this._getExtensions()) {
       extension.initializeState.call(this, this.context, extension);
     }
     // End subclass lifecycle methods
@@ -996,7 +1003,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
         }
       }
       // Execute extension updates
-      for (const extension of this.props.extensions) {
+      for (const extension of this._getExtensions()) {
         extension.updateState.call(this, updateParams, extension);
       }
 
@@ -1026,7 +1033,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     // Call subclass lifecycle method
     this.finalizeState(this.context);
     // Finalize extensions
-    for (const extension of this.props.extensions) {
+    for (const extension of this._getExtensions()) {
       extension.finalizeState.call(this, this.context, extension);
     }
   }
@@ -1049,7 +1056,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     const context = this.context;
     // Overwrite this.props during redraw to use in-transition prop values
     // `internalState.propsInTransition` could be missing if `updateState` failed
-    // @ts-ignore (TS2339) internalState is alwasy defined when this method is called
+    // @ts-expect-error (TS2339) internalState is alwasy defined when this method is called
     this.props = this.internalState.propsInTransition || currentProps;
 
     try {
@@ -1079,20 +1086,32 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       // Call subclass lifecycle method
       if (context.device instanceof WebGLDevice) {
         context.device.withParametersWebGL(parameters, () => {
-          const opts: DrawOptions = {renderPass, shaderModuleProps, uniforms, parameters, context};
+          const opts: DrawOptions = {
+            renderPass,
+            shaderModuleProps,
+            uniforms,
+            parameters,
+            context
+          };
 
           // extensions
-          for (const extension of this.props.extensions) {
+          for (const extension of this._getExtensions()) {
             extension.draw.call(this, opts, extension);
           }
 
           this.draw(opts);
         });
       } else {
-        const opts: DrawOptions = {renderPass, shaderModuleProps, uniforms, parameters, context};
+        const opts: DrawOptions = {
+          renderPass,
+          shaderModuleProps,
+          uniforms,
+          parameters,
+          context
+        };
 
         // extensions
-        for (const extension of this.props.extensions) {
+        for (const extension of this._getExtensions()) {
           extension.draw.call(this, opts, extension);
         }
 
@@ -1124,7 +1143,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
       if (flags[key]) {
         let flagChanged = false;
         switch (key) {
-          case 'dataChanged':
+          case 'dataChanged': {
             // changeFlags.dataChanged may be `false`, a string (reason) or an array of ranges
             const dataChangedReason = flags[key];
             const prevDataChangedReason = changeFlags[key];
@@ -1135,6 +1154,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
                 : dataChangedReason;
               flagChanged = true;
             }
+          }
 
           default:
             if (!changeFlags[key]) {
@@ -1164,7 +1184,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
 
   /** Clear all changeFlags, typically after an update */
   private _clearChangeFlags(): void {
-    // @ts-ignore TS2531 this method can only be called internally with internalState assigned
+    // @ts-expect-error TS2531 this method can only be called internally with internalState assigned
     this.internalState.changeFlags = {
       dataChanged: false,
       propsChanged: false,
@@ -1196,7 +1216,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     if (changeFlags.transitionsChanged) {
       for (const key in changeFlags.transitionsChanged) {
         // prop changed and transition is enabled
-        // @ts-ignore (TS2531) internalState is always defined when this method is called
+        // @ts-expect-error (TS2531) internalState is always defined when this method is called
         this.internalState.uniformTransitions.add(
           key,
           oldProps[key],
@@ -1227,12 +1247,12 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
   /** Update picking module parameters to highlight the hovered object */
   protected _updateAutoHighlight(info: PickingInfo): void {
     const picking: PickingProps = {
-      // @ts-ignore
+      // @ts-expect-error
       highlightedObjectColor: info.picked ? info.color : null
     };
     const {highlightColor} = this.props;
     if (info.picked && typeof highlightColor === 'function') {
-      // @ts-ignore
+      // @ts-expect-error
       picking.highlightColor = highlightColor(info);
     }
     this.setShaderModuleProps({picking});
@@ -1297,12 +1317,16 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
   private _getUpdateParams(): UpdateParameters<Layer<PropsT>> {
     return {
       props: this.props,
-      // @ts-ignore TS2531 this method can only be called internally with internalState assigned
+      // @ts-expect-error TS2531 this method can only be called internally with internalState assigned
       oldProps: this.internalState.getOldProps() as PropsT,
       context: this.context,
-      // @ts-ignore TS2531 this method can only be called internally with internalState assigned
+      // @ts-expect-error TS2531 this method can only be called internally with internalState assigned
       changeFlags: this.internalState.changeFlags
     };
+  }
+
+  private _getExtensions() {
+    return this.props.extensions || EMPTY_ARRAY;
   }
 
   /** Checks state of attributes and model */
@@ -1324,7 +1348,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
     redraw = redraw || attributeManagerNeedsRedraw;
 
     if (redraw) {
-      for (const extension of this.props.extensions) {
+      for (const extension of this._getExtensions()) {
         extension.onNeedsRedraw.call(this, extension);
       }
     }
@@ -1335,7 +1359,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
 
   /** Callback when asyn prop is loaded */
   private _onAsyncPropUpdated(): void {
-    // @ts-ignore TS2531 this method can only be called internally with internalState assigned
+    // @ts-expect-error TS2531 this method can only be called internally with internalState assigned
     this._diffProps(this.props, this.internalState.getOldProps());
     this.setNeedsUpdate();
   }

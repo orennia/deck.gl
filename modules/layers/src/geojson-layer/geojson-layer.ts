@@ -54,7 +54,9 @@ export type _GeoJsonLayerProps<FeaturePropertiesT> = {
    *
    * Supported types are:
    *  * `'circle'`
+   *  * `'circle-label'`
    *  * `'icon'`
+   *  * `'icon-label'`
    *  * `'text'`
    *
    * @default 'circle'
@@ -250,6 +252,7 @@ type _GeojsonLayerIconPointProps<FeaturePropertiesT> = {
   getIconColor?: Accessor<Feature<Geometry, FeaturePropertiesT>, Color>;
   getIconAngle?: Accessor<Feature<Geometry, FeaturePropertiesT>, number>;
   getIconPixelOffset?: Accessor<Feature<Geometry, FeaturePropertiesT>, number[]>;
+  iconSizeBasis?: 'height' | 'width';
   iconSizeUnits?: Unit;
   iconSizeScale?: number;
   iconSizeMinPixels?: number;
@@ -285,14 +288,22 @@ type _GeojsonLayerTextPointProps<FeaturePropertiesT> = {
   textOutlineColor?: Color;
   textOutlineWidth?: number;
   textBillboard?: boolean;
+  textLabelPosition?: 'top' | 'bottom';
+  textLabelPadding?: number;
+  textCollisionEnabled?: boolean;
+  textCollisionGroup?: string;
+  textCollisionTestProps?: {};
   textFontSettings?: any;
+  getTextCollisionPriority?: Accessor<Feature<Geometry, FeaturePropertiesT>, number>;
 };
 
 const FEATURE_TYPES = ['points', 'linestrings', 'polygons'];
 
 const defaultProps: DefaultProps<GeoJsonLayerProps> = {
   ...getDefaultProps(POINT_LAYER.circle),
+  ...getDefaultProps(POINT_LAYER['circle-label']),
   ...getDefaultProps(POINT_LAYER.icon),
+  ...getDefaultProps(POINT_LAYER['icon-label']),
   ...getDefaultProps(POINT_LAYER.text),
   ...getDefaultProps(LINE_LAYER),
   ...getDefaultProps(POLYGON_LAYER),
@@ -414,7 +425,13 @@ export default class GeoJsonLayer<
     const info = super.getPickingInfo(params) as GeoJsonPickingInfo;
     const {index, sourceLayer} = info;
     info.featureType = FEATURE_TYPES.find(ft => sourceLayer!.id.startsWith(`${this.id}-${ft}-`));
-    if (index >= 0 && sourceLayer!.id.startsWith(`${this.id}-points-text`) && this.state.binary) {
+    if (
+      index >= 0 &&
+      (sourceLayer!.id.startsWith(`${this.id}-points-text`) ||
+        sourceLayer!.id.startsWith(`${this.id}-points-circle-label`) ||
+        sourceLayer!.id.startsWith(`${this.id}-points-icon-label`)) &&
+      this.state.binary
+    ) {
       info.index = (this.props.data as BinaryFeatureCollection).points!.globalFeatureIds.value[
         index
       ];

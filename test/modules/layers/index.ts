@@ -20,3 +20,5 @@ import './text-layer/font-atlas.spec';
 import './column-geometry.spec';
 import './utils.spec';
 import './scatterplot-layer.spec';
+import './labeled-icon-layer.spec';
+import './labeled-scatterplot-layer.spec';

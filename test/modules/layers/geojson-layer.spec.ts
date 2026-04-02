@@ -6,8 +6,8 @@ import test from 'tape-promise/tape';
 import {testLayer, generateLayerTests, getLayerUniforms} from '@deck.gl/test-utils';
 import {geojsonToBinary} from '@loaders.gl/gis';
 
-import {GeoJsonLayer} from 'deck.gl';
-import {DataFilterExtension} from '@deck.gl/extensions';
+import {GeoJsonLayer} from '@deck.gl/layers';
+import {CollisionFilterExtension, DataFilterExtension} from '@deck.gl/extensions';
 
 import * as FIXTURES from 'deck.gl-test/data';
 import {testPickingLayer} from './test-picking-layer';
@@ -23,7 +23,8 @@ test('GeoJsonLayer#tests', t => {
       iconMapping: {
         marker: {x: 0, y: 0, width: 1, height: 1}
       },
-      getIcon: () => 'marker'
+      getIcon: () => 'marker',
+      getTextCollisionPriority: () => 0
     },
     assert: t.ok,
     onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
@@ -212,6 +213,160 @@ test('GeoJsonLayer#tests', t => {
       data: binaryDataWithGetFilterValue,
       filterRange: [1, 1],
       extensions: [new DataFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#circle-label',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(layer => layer.id === 'GeoJsonLayer-points-circle-label');
+      t.ok(labeledLayer, 'creates circle-label point sublayer');
+      if (!labeledLayer) {
+        return;
+      }
+
+      t.is(labeledLayer.props.labelPosition, 'bottom', 'forwards label position');
+      t.is(labeledLayer.props.collisionGroup, 'poi-labels', 'forwards collision group');
+
+      const labeledSubLayers = labeledLayer.getSubLayers();
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('circles')),
+        'renders circles inside circle-label layer'
+      );
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('labels')),
+        'renders labels inside circle-label layer'
+      );
+    },
+    props: {
+      data: FIXTURES.geojson,
+      pointType: 'circle-label',
+      getText: f => f.properties.name || 'label',
+      getPointRadius: () => 6,
+      textLabelPosition: 'bottom',
+      textCollisionGroup: 'poi-labels',
+      getTextCollisionPriority: (_, {index}) => index,
+      extensions: [new CollisionFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#circle-label binary',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(layer => layer.id === 'GeoJsonLayer-points-circle-label');
+      t.ok(labeledLayer, 'creates circle-label point sublayer');
+      if (!labeledLayer) {
+        return;
+      }
+
+      const labeledSubLayers = labeledLayer.getSubLayers();
+      const circles = labeledSubLayers.find(layer => layer.id.endsWith('circles'));
+      const labels = labeledSubLayers.find(layer => layer.id.endsWith('labels'));
+      t.ok(circles, 'renders circles inside circle-label layer');
+      t.ok(labels, 'renders labels inside circle-label layer');
+      if (!circles || !labels) {
+        return;
+      }
+
+      t.ok(
+        circles.props.data.attributes.instancePickingColors,
+        'circle sublayer keeps binary picking colors'
+      );
+      t.notOk(
+        labels.props.data.attributes.instancePickingColors,
+        'label sublayer strips binary picking colors'
+      );
+    },
+    props: {
+      data: binaryData,
+      pointType: 'circle-label',
+      getText: f => String(f.properties.cartodb_id || 'label'),
+      getPointRadius: () => 6,
+      extensions: [new CollisionFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#icon-label',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(layer => layer.id === 'GeoJsonLayer-points-icon-label');
+      t.ok(labeledLayer, 'creates icon-label point sublayer');
+      if (!labeledLayer) {
+        return;
+      }
+
+      t.is(labeledLayer.props.labelPosition, 'bottom', 'forwards label position');
+      t.is(labeledLayer.props.textCollisionGroup, 'poi-labels', 'forwards collision group');
+
+      const labeledSubLayers = labeledLayer.getSubLayers();
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('icons')),
+        'renders icons inside icon-label layer'
+      );
+      t.ok(
+        labeledSubLayers.find(layer => layer.id.endsWith('labels')),
+        'renders labels inside icon-label layer'
+      );
+    },
+    props: {
+      data: FIXTURES.geojson,
+      pointType: 'icon-label',
+      iconAtlas: {data: new Uint8ClampedArray(4), width: 1, height: 1},
+      iconMapping: {
+        marker: {x: 0, y: 0, width: 1, height: 1}
+      },
+      getIcon: () => 'marker',
+      getIconSize: () => 16,
+      getText: f => f.properties.name || 'label',
+      textLabelPosition: 'bottom',
+      textCollisionGroup: 'poi-labels',
+      getTextCollisionPriority: (_, {index}) => index,
+      extensions: [new CollisionFilterExtension()]
+    }
+  });
+
+  testCases.push({
+    title: 'GeoJsonLayer#icon-label binary',
+    onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
+    onAfterUpdate: ({subLayers}) => {
+      const labeledLayer = subLayers.find(layer => layer.id === 'GeoJsonLayer-points-icon-label');
+      t.ok(labeledLayer, 'creates icon-label point sublayer');
+      if (!labeledLayer) {
+        return;
+      }
+
+      const labeledSubLayers = labeledLayer.getSubLayers();
+      const icons = labeledSubLayers.find(layer => layer.id.endsWith('icons'));
+      const labels = labeledSubLayers.find(layer => layer.id.endsWith('labels'));
+      t.ok(icons, 'renders icons inside icon-label layer');
+      t.ok(labels, 'renders labels inside icon-label layer');
+      if (!icons || !labels) {
+        return;
+      }
+
+      t.ok(
+        icons.props.data.attributes.instancePickingColors,
+        'icon sublayer keeps binary picking colors'
+      );
+      t.notOk(
+        labels.props.data.attributes.instancePickingColors,
+        'label sublayer strips binary picking colors'
+      );
+    },
+    props: {
+      data: binaryData,
+      pointType: 'icon-label',
+      iconAtlas: {data: new Uint8ClampedArray(4), width: 1, height: 1},
+      iconMapping: {
+        marker: {x: 0, y: 0, width: 1, height: 1}
+      },
+      getIcon: () => 'marker',
+      getIconSize: () => 16,
+      getText: f => String(f.properties.cartodb_id || 'label'),
+      extensions: [new CollisionFilterExtension()]
     }
   });
 

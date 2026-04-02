@@ -6,6 +6,7 @@ import test from 'tape-promise/tape';
 import {getLayerUniforms, testLayer} from '@deck.gl/test-utils';
 import {MVTLayer} from '@deck.gl/geo-layers';
 import {ClipExtension} from '@deck.gl/extensions';
+import {CollisionFilterExtension} from '@deck.gl/extensions';
 import {transform} from '@deck.gl/geo-layers/mvt-layer/coordinate-transform';
 import findIndexBinary from '@deck.gl/geo-layers/mvt-layer/find-index-binary';
 import {GeoJsonLayer} from '@deck.gl/layers';
@@ -59,6 +60,23 @@ const geoJSONDataWGS84 = [
 ];
 
 const geoJSONBinaryData = geojsonToBinary(JSON.parse(JSON.stringify(geoJSONData)));
+const geoJSONPointBinaryData = geojsonToBinary([
+  {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [0.5, 0.5]
+    },
+    properties: {
+      text: 'label'
+    }
+  }
+]);
+
+const pointIconAtlas = {data: new Uint8ClampedArray(4), width: 1, height: 1};
+const pointIconMapping = {
+  marker: {x: 0, y: 0, width: 1, height: 1}
+};
 
 const TRANSFORM_COORDS_DATA = [
   {
@@ -727,5 +745,134 @@ test('MVTLayer#GeoJsonLayer.defaultProps', t => {
 
   testLayer({Layer: TestMVTLayer, testCases, onError: t.notOk});
 
+  t.end();
+});
+
+test('MVTLayer#circle-label pointType', async t => {
+  const renderedSubLayers: GeoJsonLayer[] = [];
+
+  class TestMVTLayer extends MVTLayer {
+    getTileData() {
+      return geoJSONPointBinaryData;
+    }
+
+    renderSubLayers(props) {
+      const layer = super.renderSubLayers(props) as GeoJsonLayer;
+      if (layer instanceof GeoJsonLayer) {
+        renderedSubLayers.push(layer);
+      }
+      return layer;
+    }
+  }
+
+  const viewport = new WebMercatorViewport({
+    width: 100,
+    height: 100,
+    longitude: 0,
+    latitude: 60,
+    zoom: 3
+  });
+
+  const testCases = [
+    {
+      props: {
+        data: ['https://a.server/{z}/{x}/{y}.mvt'],
+        pointType: 'circle-label',
+        getText: f => f.properties.text,
+        getPointRadius: () => 8,
+        textCollisionGroup: 'mvt-labels',
+        extensions: [new CollisionFilterExtension()]
+      },
+      onBeforeUpdate: () => {
+        renderedSubLayers.length = 0;
+      },
+      onAfterUpdate: ({layer}) => {
+        if (!layer.isLoaded) {
+          return;
+        }
+
+        t.ok(
+          renderedSubLayers.some(subLayer => subLayer instanceof GeoJsonLayer),
+          'renders GeoJson sublayers for MVT tiles'
+        );
+        t.ok(
+          renderedSubLayers.some(
+            subLayer =>
+              subLayer.props.pointType === 'circle-label' &&
+              subLayer.props.textCollisionGroup === 'mvt-labels'
+          ),
+          'forwards circle-label point props into GeoJson tile sublayers'
+        );
+      }
+    }
+  ];
+
+  await testLayerAsync({Layer: TestMVTLayer, viewport, testCases, onError: t.notOk});
+  t.end();
+});
+
+test('MVTLayer#icon-label pointType', async t => {
+  const renderedSubLayers: GeoJsonLayer[] = [];
+
+  class TestMVTLayer extends MVTLayer {
+    getTileData() {
+      return geoJSONPointBinaryData;
+    }
+
+    renderSubLayers(props) {
+      const layer = super.renderSubLayers(props) as GeoJsonLayer;
+      if (layer instanceof GeoJsonLayer) {
+        renderedSubLayers.push(layer);
+      }
+      return layer;
+    }
+  }
+
+  const viewport = new WebMercatorViewport({
+    width: 100,
+    height: 100,
+    longitude: 0,
+    latitude: 60,
+    zoom: 3
+  });
+
+  const testCases = [
+    {
+      props: {
+        data: ['https://a.server/{z}/{x}/{y}.mvt'],
+        pointType: 'icon-label',
+        iconAtlas: pointIconAtlas,
+        iconMapping: pointIconMapping,
+        getIcon: () => 'marker',
+        getIconSize: () => 16,
+        getText: f => f.properties.text,
+        textCollisionGroup: 'mvt-labels',
+        extensions: [new CollisionFilterExtension()]
+      },
+      onBeforeUpdate: () => {
+        renderedSubLayers.length = 0;
+      },
+      onAfterUpdate: ({layer}) => {
+        if (!layer.isLoaded) {
+          return;
+        }
+
+        t.ok(
+          renderedSubLayers.some(subLayer => subLayer instanceof GeoJsonLayer),
+          'renders GeoJson sublayers for MVT tiles'
+        );
+        t.ok(
+          renderedSubLayers.some(
+            subLayer =>
+              subLayer.props.pointType === 'icon-label' &&
+              subLayer.props.textCollisionGroup === 'mvt-labels'
+          ),
+          'forwards icon-label point props into GeoJson tile sublayers'
+        );
+      }
+    }
+  ];
+
+  await testLayerAsync({Layer: TestMVTLayer, viewport, testCases, onError: t.notOk});
   t.end();
 });

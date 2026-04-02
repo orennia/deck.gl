@@ -99,6 +99,29 @@ Extension.defaultProps = {
   getExtValue: {type: 'accessor', value: 1}
 };
 
+class TestLayerWithModel extends Layer {
+  initializeState() {
+    this.state.model = new Model(this.context.device, {
+      ...this.getShaders({
+        vs: `\
+  #version 300 es
+  void main() {
+    gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+  }
+        `,
+        fs: `\
+  #version 300 es
+  precision highp float;
+  out vec4 fragColor;
+  void main(void) {
+    fragColor = vec4(1.0);
+  }
+        `
+      })
+    });
+  }
+}
+
 test('Layer#constructor', t => {
   for (const tc of LAYER_CONSTRUCT_TEST_CASES) {
     const layer = Array.isArray(tc.props) ? new Layer(...tc.props) : new Layer(tc.props);
@@ -278,6 +301,27 @@ test('Layer#diffProps#extensions', t => {
   t.false(layer.getChangeFlags().somethingChanged, 'extension accessor change ignored');
 
   layer.finalizeState();
+
+  t.end();
+});
+
+test('Layer#extensions undefined', t => {
+  t.doesNotThrow(
+    () =>
+      testLayer({
+        Layer: TestLayerWithModel,
+        testCases: [
+          {
+            props: {
+              data: [],
+              extensions: undefined
+            }
+          }
+        ],
+        onError: t.notOk
+      }),
+    'explicit undefined extensions does not crash'
+  );
 
   t.end();
 });

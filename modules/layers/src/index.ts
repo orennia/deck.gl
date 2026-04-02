@@ -16,6 +16,8 @@ export {default as GridCellLayer} from './column-layer/grid-cell-layer';
 export {default as PathLayer} from './path-layer/path-layer';
 export {default as PolygonLayer} from './polygon-layer/polygon-layer';
 export {default as GeoJsonLayer} from './geojson-layer/geojson-layer';
+export {default as LabeledIconLayer} from './labeled-icon-layer/labeled-icon-layer';
+export {default as LabeledScatterplotLayer} from './labeled-scatterplot-layer/labeled-scatterplot-layer';
 export {default as TextLayer} from './text-layer/text-layer';
 export {default as SolidPolygonLayer} from './solid-polygon-layer/solid-polygon-layer';
 
@@ -37,6 +39,8 @@ export type {LineLayerProps} from './line-layer/line-layer';
 export type {PolygonLayerProps} from './polygon-layer/polygon-layer';
 export type {GeoJsonLayerProps} from './geojson-layer/geojson-layer';
 export type {GridCellLayerProps} from './column-layer/grid-cell-layer';
+export type {LabeledIconLayerProps} from './labeled-icon-layer/labeled-icon-layer';
+export type {LabeledScatterplotLayerProps} from './labeled-scatterplot-layer/labeled-scatterplot-layer';
 export type {TextLayerProps} from './text-layer/text-layer';
 export type {MultiIconLayerProps} from './text-layer/multi-icon-layer/multi-icon-layer';
 export type {PointCloudLayerProps} from './point-cloud-layer/point-cloud-layer';

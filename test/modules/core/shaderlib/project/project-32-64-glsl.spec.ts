@@ -11,7 +11,13 @@ import {project64} from '@deck.gl/extensions';
 import {config, NumberArray3} from '@math.gl/core';
 import {fp64} from '@luma.gl/shadertools';
 const {fp64LowPart} = fp64;
-import {getPixelOffset, runOnGPU, testUniforms, verifyGPUResult} from './project-glsl-test-utils';
+import {
+  getPixelOffset,
+  isSoftwareWebGLDevice,
+  runOnGPU,
+  testUniforms,
+  verifyGPUResult
+} from './project-glsl-test-utils';
 import {TestCase} from './project-glsl.spec';
 
 const PIXEL_TOLERANCE = 0.001;
@@ -151,6 +157,12 @@ const TEST_CASES: TestCase[] = [
 ];
 
 test('project32&64#vs', async t => {
+  if (isSoftwareWebGLDevice()) {
+    t.comment('Skipping project32&64#vs on software WebGL (SwiftShader / CI)');
+    t.end();
+    return;
+  }
+
   const oldEpsilon = config.EPSILON;
 
   for (const usefp64 of [false, true]) {
@@ -158,7 +170,7 @@ test('project32&64#vs', async t => {
     for (const testCase of TEST_CASES) {
       if (usefp64 && testCase.projectProps.coordinateSystem !== COORDINATE_SYSTEM.LNGLAT) {
         // Apply 64 bit projection only for LNGLAT_DEPRECATED
-        return;
+        continue;
       }
 
       t.comment(`${testCase.title}: ${usefp64 ? 'fp64' : 'fp32'}`);
