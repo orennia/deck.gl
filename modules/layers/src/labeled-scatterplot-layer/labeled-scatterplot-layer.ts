@@ -221,7 +221,7 @@ function getLabelPlacementProps<DataT>(
     // Text pixel offsets use screen coordinates where positive y moves downward.
     direction: props.labelPosition === 'bottom' ? 1 : -1,
     boxSizeScale: props.boxSizeScale ?? props.sizeScale ?? 1,
-    boxSizeUnits: UNIT[props.boxSizeUnits ?? props.sizeUnits ?? 'pixels'],
+    boxSizeUnits: UNIT[props.boxSizeUnits ?? props.radiusUnits ?? props.sizeUnits ?? 'pixels'],
     boxSizeMinPixels: props.boxSizeMinPixels ?? props.sizeMinPixels ?? 0,
     boxSizeMaxPixels: props.boxSizeMaxPixels ?? props.sizeMaxPixels ?? Number.MAX_SAFE_INTEGER,
     collisionPadding: collisionPadding as [number, number, number, number]
@@ -231,7 +231,8 @@ function getLabelPlacementProps<DataT>(
 function filterCollisionExtensions(extensions: LayerProps['extensions'] = []) {
   return extensions.filter(
     extension =>
-      (extension.constructor as {extensionName?: string}).extensionName !==
+      ((extension as {extensionName?: string}).extensionName ??
+        (extension.constructor as {extensionName?: string}).extensionName) !==
       'CollisionFilterExtension'
   );
 }
@@ -626,7 +627,7 @@ class LabeledScatterplotTextLayer<
       labelPadding,
       backgroundPadding: collisionTestProps?.padding ?? backgroundPadding,
       boxSizeScale: collisionTestProps?.sizeScale ?? sizeScale,
-      boxSizeUnits: collisionTestProps?.sizeUnits ?? sizeUnits,
+      boxSizeUnits: collisionTestProps?.sizeUnits ?? radiusUnits ?? sizeUnits,
       boxSizeMinPixels: collisionTestProps?.sizeMinPixels ?? sizeMinPixels,
       boxSizeMaxPixels: collisionTestProps?.sizeMaxPixels ?? sizeMaxPixels
     };
@@ -677,7 +678,7 @@ class LabeledScatterplotTextLayer<
               getLineColor: updateTriggers.getBorderColor,
               getLineWidth: updateTriggers.getBorderWidth,
               getClipRect: updateTriggers.getContentBox,
-              getPixelOffset: updateTriggers.getPixelOffset,
+              getPixelOffset: updateTriggers.getPixelOffset ?? getPixelOffset,
               getRadius: updateTriggers.getRadius,
               getBoundingRect: {
                 getText: updateTriggers.getText,
@@ -725,7 +726,7 @@ class LabeledScatterplotTextLayer<
             getAngle: updateTriggers.getAngle,
             getSize: updateTriggers.getSize,
             getClipRect: updateTriggers.getContentBox,
-            getPixelOffset: updateTriggers.getPixelOffset,
+            getPixelOffset: updateTriggers.getPixelOffset ?? getPixelOffset,
             getRadius: updateTriggers.getRadius,
             getBoundingRect: {
               getText: updateTriggers.getText,
@@ -798,7 +799,7 @@ class LabeledScatterplotTextLayer<
             getAngle: updateTriggers.getAngle,
             getColor: updateTriggers.getColor,
             getSize: updateTriggers.getSize,
-            getPixelOffset: updateTriggers.getPixelOffset,
+            getPixelOffset: updateTriggers.getPixelOffset ?? getPixelOffset,
             getContentBox: updateTriggers.getContentBox,
             getRadius: updateTriggers.getRadius,
             getBoundingRect: {

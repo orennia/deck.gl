@@ -136,6 +136,7 @@ test('LabeledIconLayer#placement uniforms', t => {
         labelPosition: 'bottom',
         sizeUnits: 'meters',
         sizeBasis: 'height',
+        textBackground: true,
         textBackgroundPadding: [2, 3],
         textCollisionTestProps: {
           backgroundPadding: [5, 7],

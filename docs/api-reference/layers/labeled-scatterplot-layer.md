@@ -156,6 +156,6 @@ Collision group for the label sublayer.
 
 Props to override when rendering the label collision map. Use `backgroundPadding`, `backgroundBorderRadius`, and text sizing props such as `sizeScale`, `sizeMinPixels`, and `sizeMaxPixels` to expand the collision footprint.
 
-#### `getCollisionPriority` (Accessor<number>, optional) {#getcollisionpriority}
+#### `getCollisionPriority` (Accessor&lt;number&gt;, optional) {#getcollisionpriority}
 
 Accessor used to prioritize which labels remain visible when collisions occur. Higher values are preferred.

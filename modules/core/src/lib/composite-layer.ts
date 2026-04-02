@@ -222,9 +222,10 @@ export default abstract class CompositeLayer<PropsT extends {} = {}> extends Lay
       ...overridingSublayerTriggers
     };
 
-    // Pass through extension props
+    // Pass through extension props (use merged extensions from newProps so sublayer
+    // overrides like `extensions: filteredList` take effect)
     // @ts-ignore (TS2532) extensions is always defined after merging with default props
-    for (const extension of extensions) {
+    for (const extension of newProps.extensions || []) {
       const passThroughProps = extension.getSubLayerProps.call(this, extension);
       if (passThroughProps) {
         Object.assign(newProps, passThroughProps, {

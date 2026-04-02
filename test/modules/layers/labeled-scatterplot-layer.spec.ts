@@ -135,6 +135,7 @@ test('LabeledScatterplotLayer#placement uniforms', t => {
     {
       updateProps: {
         radiusUnits: 'common',
+        background: true,
         getPixelOffset: () => pixelOffset,
         backgroundPadding: [2, 3],
         collisionTestProps: {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
-import {Accessor, Layer, LayerContext, LayerExtension} from '@deck.gl/core';
+import {Accessor, CompositeLayer, Layer, LayerContext, LayerExtension} from '@deck.gl/core';
 import collision from './shader-module';
 import CollisionFilterEffect from './collision-filter-effect';
 
@@ -75,5 +75,44 @@ export default class CollisionFilterExtension extends LayerExtension {
 
   getNeedsPickingBuffer(this: Layer<CollisionFilterExtensionProps>): boolean {
     return this.props.collisionEnabled;
+  }
+
+  /**
+   * Labeled layers and GeoJsonLayer forward text-specific collision props (`textCollisionGroup`, etc.)
+   * onto primitive sublayers. The extension's default `collisionGroup` on the parent composite would
+   * otherwise overwrite those forwarded values in `getSubLayerProps`.
+   */
+  getSubLayerProps(this: CompositeLayer, extension: this): any {
+    const newProps = super.getSubLayerProps(extension) as {
+      updateTriggers: Record<string, any>;
+      [key: string]: any;
+    };
+    const props = this.props as Record<string, any>;
+    const triggers = props.updateTriggers || {};
+
+    if (props.textCollisionGroup !== undefined && props.textCollisionGroup !== null) {
+      newProps.collisionGroup = props.textCollisionGroup;
+      if (triggers.textCollisionGroup !== undefined) {
+        newProps.updateTriggers.collisionGroup = triggers.textCollisionGroup;
+      }
+    }
+    if (props.textCollisionEnabled !== undefined) {
+      newProps.collisionEnabled = props.textCollisionEnabled;
+      if (triggers.textCollisionEnabled !== undefined) {
+        newProps.updateTriggers.collisionEnabled = triggers.textCollisionEnabled;
+      }
+    }
+    if (props.getTextCollisionPriority !== undefined) {
+      const acc = props.getTextCollisionPriority;
+      newProps.getCollisionPriority =
+        typeof acc === 'function' ? this.getSubLayerAccessor(acc as Accessor<any, number>) : acc;
+      if (triggers.getTextCollisionPriority !== undefined) {
+        newProps.updateTriggers.getCollisionPriority = triggers.getTextCollisionPriority;
+      }
+    }
+    if (props.textCollisionTestProps !== undefined) {
+      newProps.collisionTestProps = props.textCollisionTestProps;
+    }
+    return newProps;
   }
 }

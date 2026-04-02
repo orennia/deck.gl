@@ -23,7 +23,8 @@ test('GeoJsonLayer#tests', t => {
       iconMapping: {
         marker: {x: 0, y: 0, width: 1, height: 1}
       },
-      getIcon: () => 'marker'
+      getIcon: () => 'marker',
+      getTextCollisionPriority: () => 0
     },
     assert: t.ok,
     onBeforeUpdate: ({testCase}) => t.comment(testCase.title),
@@ -239,6 +240,7 @@ test('GeoJsonLayer#tests', t => {
       );
     },
     props: {
+      data: FIXTURES.geojson,
       pointType: 'circle-label',
       getText: f => f.properties.name || 'label',
       getPointRadius: () => 6,
@@ -310,7 +312,12 @@ test('GeoJsonLayer#tests', t => {
       );
     },
     props: {
+      data: FIXTURES.geojson,
       pointType: 'icon-label',
+      iconAtlas: {data: new Uint8ClampedArray(4), width: 1, height: 1},
+      iconMapping: {
+        marker: {x: 0, y: 0, width: 1, height: 1}
+      },
       getIcon: () => 'marker',
       getIconSize: () => 16,
       getText: f => f.properties.name || 'label',
@@ -352,6 +359,10 @@ test('GeoJsonLayer#tests', t => {
     props: {
       data: binaryData,
       pointType: 'icon-label',
+      iconAtlas: {data: new Uint8ClampedArray(4), width: 1, height: 1},
+      iconMapping: {
+        marker: {x: 0, y: 0, width: 1, height: 1}
+      },
       getIcon: () => 'marker',
       getIconSize: () => 16,
       getText: f => String(f.properties.cartodb_id || 'label'),

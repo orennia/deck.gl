@@ -29,10 +29,11 @@ type BartStation = {
   coordinates: [number, number];
 };
 
-function toFeatureCollection(data: BartStation[]): FeatureCollection<Point, BartStation> {
+function toFeatureCollection(data?: BartStation[] | null): FeatureCollection<Point, BartStation> {
+  const stations = data || [];
   return {
     type: 'FeatureCollection',
-    features: data.map(
+    features: stations.map(
       station =>
         ({
           type: 'Feature',
@@ -55,7 +56,7 @@ export default function App({
   textSize = 14,
   circleScale = 2
 }: {
-  data?: BartStation[];
+  data?: BartStation[] | null;
   mapStyle?: string;
   textBackground?: boolean;
   collisionEnabled?: boolean;

@@ -551,7 +551,7 @@ export default class GeoJsonLayer<
         const forwardedProps = forwardProps(this, PointLayerMapping.props);
         let pointsLayerProps = layerProps.points;
 
-        if ((type === 'text' || type === 'circle-label' || type === 'icon-label') && binary) {
+        if (type === 'text' && binary) {
           // Picking colors are per-point but for text per-character are required
           // getPickingInfo() maps back to the correct index
           // eslint-disable-next-line @typescript-eslint/no-unused-vars

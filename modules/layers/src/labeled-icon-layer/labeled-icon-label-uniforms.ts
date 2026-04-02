@@ -9,7 +9,10 @@ uniform labeledIconLabelUniforms {
   float boxSizeScale;
   float boxSizeMinPixels;
   float boxSizeMaxPixels;
+  float direction;
+  float pointSizeBasis;
   highp int boxSizeUnits;
+  highp int pointSizeUnits;
   vec4 collisionPadding;
 } labeledIconLabel;
 
@@ -28,9 +31,12 @@ vec2 labeledIcon_getPixelOffset(float size, vec3 iconMetrics) {
 
 export type LabeledIconLabelProps = {
   boxSizeScale: number;
+  direction: number;
   boxSizeUnits: number;
   boxSizeMinPixels: number;
   boxSizeMaxPixels: number;
+  pointSizeUnits: number;
+  pointSizeBasis: number;
   collisionPadding: [number, number, number, number];
 };
 
@@ -41,9 +47,12 @@ export const labeledIconLabelUniforms = {
   source: '',
   uniformTypes: {
     boxSizeScale: 'f32',
+    direction: 'f32',
     boxSizeUnits: 'i32',
     boxSizeMinPixels: 'f32',
     boxSizeMaxPixels: 'f32',
+    pointSizeUnits: 'i32',
+    pointSizeBasis: 'f32',
     collisionPadding: 'vec4<f32>'
   }
 } as const satisfies ShaderModule<LabeledIconLabelProps>;

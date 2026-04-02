@@ -192,7 +192,7 @@ export default abstract class Layer<PropsT extends {} = {}> extends Component<
   static layerName: string = 'Layer';
 
   static override get componentName() {
-    return Object.hasOwn(Layer, 'layerName') ? Layer.layerName : '';
+    return this.layerName;
   }
 
   internalState: LayerState<this> | null = null;

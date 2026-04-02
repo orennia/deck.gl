@@ -298,7 +298,8 @@ function createPointPlacementAccessor<DataT>(
   getPointSize: Accessor<DataT, number> | undefined,
   getIcon: Accessor<DataT, string> | Accessor<DataT, UnpackedIcon> | undefined,
   iconMapping: string | IconMapping | null | undefined,
-  getIconResolver: (() => IconDefinitionResolver) | undefined
+  getIconResolver: (() => IconDefinitionResolver) | undefined,
+  labelPosition: 'top' | 'bottom'
 ): Accessor<DataT, PointPlacement> {
   return (object, info) => {
     const pointSize =
@@ -306,7 +307,7 @@ function createPointPlacementAccessor<DataT>(
     const icon = typeof getIcon === 'function' ? getIcon(object, info) : getIcon;
     const iconResolver = getIconResolver?.();
     const {width, height, anchorY} = resolveIconDefinition(iconMapping, icon, iconResolver);
-    const resolvedAnchorY = anchorY ?? height / 2;
+    const resolvedAnchorY = anchorY ?? (labelPosition === 'top' ? height : 0);
 
     return [pointSize ?? 1, width, height, resolvedAnchorY];
   };
@@ -341,7 +342,7 @@ function createIconAlignedPixelOffsetAccessor<DataT>(
     const {
       width,
       height,
-      anchorY = height / 2
+      anchorY = labelPosition === 'top' ? height : 0
     } = resolveIconDefinition(iconMapping, icon, iconResolver);
 
     let sizePixels = pointSize * pointSizeScale;
@@ -389,8 +390,11 @@ function getLabelPlacementProps<DataT>(
       : [...backgroundPadding];
 
   return {
+    direction: props.labelPosition === 'bottom' ? 1 : -1,
     boxSizeScale: props.boxSizeScale ?? props.sizeScale ?? 1,
     boxSizeUnits: UNIT[props.boxSizeUnits ?? props.sizeUnits ?? 'pixels'],
+    pointSizeUnits: UNIT[props.pointSizeUnits ?? props.sizeUnits ?? 'pixels'],
+    pointSizeBasis: props.pointSizeBasis === 'width' ? 0 : 1,
     boxSizeMinPixels: props.boxSizeMinPixels ?? props.sizeMinPixels ?? 0,
     boxSizeMaxPixels: props.boxSizeMaxPixels ?? props.sizeMaxPixels ?? Number.MAX_SAFE_INTEGER,
     collisionPadding: collisionPadding as [number, number, number, number]
@@ -400,7 +404,8 @@ function getLabelPlacementProps<DataT>(
 function filterCollisionExtensions(extensions: LayerProps['extensions'] = []) {
   return extensions.filter(
     extension =>
-      (extension.constructor as {extensionName?: string}).extensionName !==
+      ((extension as {extensionName?: string}).extensionName ??
+        (extension.constructor as {extensionName?: string}).extensionName) !==
       'CollisionFilterExtension'
   );
 }
@@ -1118,7 +1123,8 @@ export default class LabeledIconLayer<
       getSize,
       getIcon,
       iconMapping,
-      () => iconManagerRef.current
+      () => iconManagerRef.current,
+      labelPosition
     );
     const getAlignedPixelOffset = createIconAlignedPixelOffsetAccessor(
       getTextPixelOffset,
