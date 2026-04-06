@@ -365,6 +365,41 @@ class LabeledScatterplotCollisionTextBackgroundLayer<
 > extends BaseLabeledScatterplotTextBackgroundLayer<DataT, ExtraPropsT> {
   static layerName = 'LabeledScatterplotCollisionTextBackgroundLayer';
 
+  draw() {
+    const {billboard, sizeScale, sizeUnits, sizeMinPixels, sizeMaxPixels} = this.props;
+    let {padding} = this.props;
+
+    if (padding.length < 4) {
+      padding = [padding[0], padding[1], padding[0], padding[1]];
+    }
+
+    const model = this.state.model;
+    if (!model) {
+      return;
+    }
+
+    const textBackgroundProps: TextBackgroundProps = {
+      billboard,
+      stroked: false,
+      borderRadius: [0, 0, 0, 0],
+      padding: padding as [number, number, number, number],
+      sizeUnits: UNIT[sizeUnits],
+      sizeScale,
+      sizeMinPixels,
+      sizeMaxPixels
+    };
+    const textProps: TextModuleProps = {
+      viewport: this.context.viewport
+    };
+    model.shaderInputs.setProps({
+      textBackground: textBackgroundProps,
+      text: textProps,
+      scatterplot: getScatterplotShaderProps(this.props),
+      labeledScatterplotLabel: getLabelPlacementProps(this.props)
+    });
+    model.draw(this.context.renderPass);
+  }
+
   protected getVertexShader() {
     return labeledScatterplotCollisionTextBackgroundVs;
   }
@@ -412,6 +447,11 @@ class LabeledScatterplotMultiIconLayer<
         transition: true,
         accessor: 'getRadius',
         defaultValue: 1
+      },
+      instanceRects: {
+        size: 4,
+        accessor: 'getBoundingRect',
+        defaultValue: [0, 0, 0, 0]
       },
       instanceBoundingRects: {
         size: 4,
@@ -871,12 +911,15 @@ export default class LabeledScatterplotLayer<
 
     const cleanedAttributes = {...attributes};
     const background = cleanedAttributes.background;
-    delete cleanedAttributes.instancePickingColors;
+    const backgroundPickingColors = background?.instancePickingColors;
+
+    if (backgroundPickingColors) {
+      cleanedAttributes.instancePickingColors = backgroundPickingColors;
+    } else {
+      delete cleanedAttributes.instancePickingColors;
+    }
 
     const backgroundAttributes = background ? {...background} : background;
-    if (backgroundAttributes) {
-      delete backgroundAttributes.instancePickingColors;
-    }
 
     return {
       ...dataWithAttributes,

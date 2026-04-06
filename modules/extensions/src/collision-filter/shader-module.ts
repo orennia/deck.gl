@@ -28,6 +28,14 @@ float collision_match(vec2 tex, vec3 pickingColor) {
   return step(delta, e);
 }
 
+float collision_stable_bias(vec3 pickingColor) {
+  return (
+    pickingColor.r +
+    pickingColor.g * 256.0 +
+    pickingColor.b * 65536.0
+  ) / 16777215.0;
+}
+
 float collision_isVisible(vec2 texCoords, vec3 pickingColor) {
   if (!collision.enabled) {
     return 1.0;
@@ -66,7 +74,10 @@ const inject = {
   'vs:DECKGL_FILTER_GL_POSITION': /* glsl */ `
   if (collision.sort) {
     float collisionPriority = collisionPriorities;
-    position.z = -0.001 * collisionPriority * position.w; // Support range -1000 -> 1000
+    // Break equal-priority ties deterministically so the same label wins every frame.
+    position.z =
+      (-0.003 * collisionPriority - 0.000001 * collision_stable_bias(geometry.pickingColor)) *
+      position.w; // Support range -1000 -> 1000
   }
 
   if (collision.enabled) {

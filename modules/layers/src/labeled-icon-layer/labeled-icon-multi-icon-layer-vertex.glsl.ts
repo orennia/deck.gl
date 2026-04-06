@@ -19,7 +19,7 @@ in float instanceColorModes;
 in vec2 instanceOffsets;
 in vec2 instancePixelOffset;
 in vec4 instanceClipRect;
-in vec4 instanceBoundingRects;
+in vec4 instanceRects;
 in vec4 instancePointPlacements;
 
 out float vColorMode;
@@ -66,36 +66,29 @@ float getPixelOffsetFromAlignment(
 
 #ifdef MODULE_COLLISION
 vec2 labeledIcon_getCollisionTexCoords(vec2 pixelOffset) {
-  vec2 pixelOffsetClipspace = vec2(pixelOffset.x, -pixelOffset.y);
-  if (icon.billboard) {
-    vec4 clipPosition = project_position_to_clipspace(
-      instancePositions,
-      instancePositions64Low,
-      vec3(0.0),
-      geometry.position
-    );
-    clipPosition.xy += project_pixel_size_to_clipspace(pixelOffsetClipspace);
-    return (1.0 + clipPosition.xy / clipPosition.w) / 2.0;
-  }
-
-  vec3 offset_common = vec3(project_pixel_size(pixelOffsetClipspace), 0.0);
-  if (text.flipY) {
-    offset_common.y *= -1.0;
-  }
   vec4 clipPosition = project_position_to_clipspace(
     instancePositions,
     instancePositions64Low,
-    offset_common,
+    vec3(0.0),
     geometry.position
   );
-  return (1.0 + clipPosition.xy / clipPosition.w) / 2.0;
+  vec2 anchorTexCoords = (1.0 + clipPosition.xy / clipPosition.w) / 2.0;
+  vec2 collisionTextureSize = vec2(textureSize(collision_texture, 0));
+  return anchorTexCoords + vec2(pixelOffset.x, -pixelOffset.y) / collisionTextureSize;
+}
+
+float labeledIcon_collisionOwnsSample(vec2 samplePoint, vec3 pickingColor) {
+  return collision_match(
+    labeledIcon_getCollisionTexCoords(
+      rotate_by_angle(samplePoint, labeledIconCollisionAngle) + labeledIconCollisionTotalOffset
+    ),
+    pickingColor
+  );
 }
 
 float labeledIcon_collisionIsVisible(vec3 pickingColor) {
-  vec2 extent = labeledIconCollisionRectMax - labeledIconCollisionRectMin;
-  vec2 inset = min(extent * 0.25, vec2(4.0));
-  vec2 sampleMin = labeledIconCollisionRectMin + inset;
-  vec2 sampleMax = labeledIconCollisionRectMax - inset;
+  vec2 sampleMin = labeledIconCollisionRectMin;
+  vec2 sampleMax = labeledIconCollisionRectMax;
 
   if (sampleMax.x < sampleMin.x) {
     float midX = (labeledIconCollisionRectMin.x + labeledIconCollisionRectMax.x) * 0.5;
@@ -108,25 +101,18 @@ float labeledIcon_collisionIsVisible(vec3 pickingColor) {
     sampleMax.y = midY;
   }
 
-  const int SAMPLE_COLUMNS = 7;
-  const int SAMPLE_ROWS = 3;
-  float visibility = 1.0;
+  vec2 cornerInset = min(sampleMax - sampleMin, vec2(1.0)) * 0.5;
+  vec2 cornerMin = sampleMin + cornerInset;
+  vec2 cornerMax = sampleMax - cornerInset;
+  vec2 corner0 = cornerMin;
+  vec2 corner1 = vec2(cornerMax.x, cornerMin.y);
+  vec2 corner2 = vec2(cornerMin.x, cornerMax.y);
+  vec2 corner3 = cornerMax;
 
-  for (int x = 0; x < SAMPLE_COLUMNS; x++) {
-    float tx = SAMPLE_COLUMNS == 1 ? 0.5 : float(x) / float(SAMPLE_COLUMNS - 1);
-    for (int y = 0; y < SAMPLE_ROWS; y++) {
-      float ty = SAMPLE_ROWS == 1 ? 0.5 : float(y) / float(SAMPLE_ROWS - 1);
-      vec2 samplePoint = mix(sampleMin, sampleMax, vec2(tx, ty));
-      vec2 sampleOffset =
-        rotate_by_angle(samplePoint, labeledIconCollisionAngle) + labeledIconCollisionTotalOffset;
-      visibility = min(
-        visibility,
-        collision_isVisible(labeledIcon_getCollisionTexCoords(sampleOffset), pickingColor)
-      );
-    }
-  }
-
-  return step(0.5, visibility);
+  return min(
+    min(labeledIcon_collisionOwnsSample(corner0, pickingColor), labeledIcon_collisionOwnsSample(corner1, pickingColor)),
+    min(labeledIcon_collisionOwnsSample(corner2, pickingColor), labeledIcon_collisionOwnsSample(corner3, pickingColor))
+  );
 }
 #endif
 
@@ -153,13 +139,13 @@ void main(void) {
 #ifdef MODULE_COLLISION
   float collisionBoxSizePixels = labeledIcon_getLabelBoxSizePixels(instanceSizes);
   labeledIconCollisionRectMin = vec2(
-    instanceBoundingRects.x * collisionBoxSizePixels - labeledIconLabel.collisionPadding.x,
-    instanceBoundingRects.y * collisionBoxSizePixels - labeledIconLabel.collisionPadding.y
+    instanceRects.x * collisionBoxSizePixels - labeledIconLabel.collisionPadding.x,
+    instanceRects.y * collisionBoxSizePixels - labeledIconLabel.collisionPadding.y
   );
   labeledIconCollisionRectMax = vec2(
-    (instanceBoundingRects.x + instanceBoundingRects.z) * collisionBoxSizePixels +
+    (instanceRects.x + instanceRects.z) * collisionBoxSizePixels +
       labeledIconLabel.collisionPadding.z,
-    (instanceBoundingRects.y + instanceBoundingRects.w) * collisionBoxSizePixels +
+    (instanceRects.y + instanceRects.w) * collisionBoxSizePixels +
       labeledIconLabel.collisionPadding.w
   );
   labeledIconCollisionTotalOffset = instancePixelOffset + labelPixelOffset;
