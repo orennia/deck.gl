@@ -180,11 +180,6 @@ type LabeledIconBillboardProps = {
   textBillboard?: boolean;
 };
 
-type LabeledIconCollisionDebugProps = {
-  debugCollisionMask?: boolean;
-  debugCollisionMaskColor?: Color;
-};
-
 type LabeledIconTextLayerProps<DataT> = Omit<TextLayerProps<DataT>, 'billboard'> &
   LabeledIconPlacementProps<DataT> & {
     collisionEnabled?: boolean;
@@ -195,7 +190,7 @@ type LabeledIconTextLayerProps<DataT> = Omit<TextLayerProps<DataT>, 'billboard'>
     contentCutoffPixels?: NonNullable<TextModuleProps['contentCutoffPixels']>;
     contentAlignHorizontal?: TextModuleProps['contentAlignHorizontal'];
     contentAlignVertical?: TextModuleProps['contentAlignVertical'];
-  } & LabeledIconCollisionDebugProps;
+  };
 
 type LabeledIconTextSubLayerProps<DataT> = LabeledIconPlacementProps<DataT> & {
   data: LayerDataSource<DataT>;
@@ -238,7 +233,6 @@ type LabeledIconMultiIconLayerProps<DataT> = LabeledIconTextSubLayerProps<DataT>
 export type LabeledIconLayerProps<DataT = unknown> = Omit<IconLayerProps<DataT>, 'billboard'> &
   LabeledIconLabelTextProps<DataT> &
   LabeledIconCollisionProps<DataT> &
-  LabeledIconCollisionDebugProps &
   LabeledIconBillboardProps & {
     labelPosition?: 'top' | 'bottom';
     labelPadding?: number;
@@ -437,20 +431,6 @@ function mapCollisionTestProps(collisionTestProps: CollisionTestProps | undefine
   return mappedProps;
 }
 
-const collisionMaskDebugFs = /* glsl */ `\
-#version 300 es
-#define SHADER_NAME labeled-icon-collision-mask-debug-fragment-shader
-
-precision highp float;
-
-out vec4 fragColor;
-
-void main(void) {
-  fragColor = vec4(1.0, 0.0, 1.0, 0.95);
-  DECKGL_FILTER_COLOR(fragColor, geometry);
-}
-`;
-
 class BaseLabeledIconTextBackgroundLayer<
   DataT = unknown,
   ExtraPropsT extends object = object
@@ -555,18 +535,6 @@ class LabeledIconCollisionTextBackgroundLayer<
   ExtraPropsT extends object = object
 > extends BaseLabeledIconTextBackgroundLayer<DataT, ExtraPropsT> {
   static layerName = 'LabeledIconCollisionTextBackgroundLayer';
-
-  getShaders() {
-    if (!this.props.debugCollisionMask) {
-      return super.getShaders();
-    }
-
-    return Layer.prototype.getShaders.call(this, {
-      vs: this.getVertexShader(),
-      fs: collisionMaskDebugFs,
-      modules: [project32, picking, textBackgroundUniforms, textUniforms, labeledIconLabelUniforms]
-    });
-  }
 
   draw() {
     const {billboard, sizeScale, sizeUnits, sizeMinPixels, sizeMaxPixels} = this.props;
@@ -835,8 +803,6 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
       contentCutoffPixels,
       contentAlignHorizontal,
       contentAlignVertical,
-      debugCollisionMask,
-      debugCollisionMaskColor,
       collisionEnabled,
       collisionGroup,
       getCollisionPriority,
@@ -862,10 +828,6 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
     );
     const CollisionBackgroundLayerClass = this.getSubLayerClass(
       'collision-background',
-      LabeledIconCollisionTextBackgroundLayer
-    );
-    const DebugCollisionBackgroundLayerClass = this.getSubLayerClass(
-      'collision-background-debug',
       LabeledIconCollisionTextBackgroundLayer
     );
 
@@ -956,7 +918,7 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
         ),
       new CollisionBackgroundLayerClass(
         {
-          getFillColor: debugCollisionMaskColor,
+          getFillColor: getBackgroundColor,
           getPosition,
           getSize,
           getAngle,
@@ -972,8 +934,6 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
           sizeUnits,
           sizeMinPixels,
           sizeMaxPixels,
-          debugCollisionMask,
-          debugCollisionMaskColor,
           ...placementProps
         },
         this.getSubLayerProps({
@@ -982,6 +942,7 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
             getPosition: updateTriggers.getPosition,
             getAngle: updateTriggers.getAngle,
             getSize: updateTriggers.getSize,
+            getFillColor: updateTriggers.getBackgroundColor,
             getClipRect: updateTriggers.getContentBox,
             getPixelOffset: updateTriggers.getPixelOffset,
             getPointPlacement: {
@@ -1008,56 +969,6 @@ class LabeledIconTextLayer<DataT = unknown, ExtraPropsT extends object = object>
           collisionTestProps
         }
       ),
-      debugCollisionMask &&
-        new DebugCollisionBackgroundLayerClass(
-          {
-            getPosition,
-            getSize,
-            getAngle,
-            getPixelOffset,
-            getClipRect: getContentBox,
-            padding: backgroundPadding,
-            billboard,
-            sizeScale,
-            sizeUnits,
-            sizeMinPixels,
-            sizeMaxPixels,
-            debugCollisionMask: true,
-            debugCollisionMaskColor,
-            ...placementProps
-          },
-          this.getSubLayerProps({
-            id: 'collision-background-debug',
-            extensions: filterCollisionExtensions(this.props.extensions),
-            updateTriggers: {
-              getPosition: updateTriggers.getPosition,
-              getAngle: updateTriggers.getAngle,
-              getSize: updateTriggers.getSize,
-              getClipRect: updateTriggers.getContentBox,
-              getPixelOffset: updateTriggers.getPixelOffset,
-              getPointPlacement: {
-                getPointPlacement: updateTriggers.getPointPlacement
-              },
-              getBoundingRect: {
-                getText: updateTriggers.getText,
-                getTextAnchor: updateTriggers.getTextAnchor,
-                getAlignmentBaseline: updateTriggers.getAlignmentBaseline,
-                styleVersion
-              }
-            }
-          }),
-          {
-            data: dataWithAttributes.attributes?.background
-              ? {
-                  length: dataWithAttributes.length,
-                  attributes: dataWithAttributes.attributes.background
-                }
-              : data,
-            _dataDiff,
-            autoHighlight: false,
-            getBoundingRect
-          }
-        ),
       new CharactersLayerClass(
         {
           sdf: fontSettings.sdf,
@@ -1247,8 +1158,6 @@ export default class LabeledIconLayer<
       textCollisionGroup,
       textCollisionTestProps,
       getTextCollisionPriority,
-      debugCollisionMask,
-      debugCollisionMaskColor,
       labelPosition,
       labelPadding,
       transitions,
@@ -1369,8 +1278,6 @@ export default class LabeledIconLayer<
           pointSizeMaxPixels: sizeMaxPixels,
           labelPosition,
           labelPadding,
-          debugCollisionMask,
-          debugCollisionMaskColor,
           collisionEnabled: textCollisionEnabled,
           collisionGroup: textCollisionGroup,
           collisionTestProps: textCollisionTestProps,
