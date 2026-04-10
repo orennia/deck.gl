@@ -19,6 +19,10 @@ Ref: http://keepachangelog.com/en/0.3.0/
 
 ## deck.gl v9.2
 
+#### deck.gl [v9.2.12-or] - Apr 10 2026
+
+- fix(text-layer): support collision filtering with `getPixelOffset`, `getTextAnchor`, and `getAlignmentBaseline`
+
 #### deck.gl [v9.2.11] - Mar 5 2026
 
 - chore: Pin to luma 9.2 & loaders 4.3 (#10062)
