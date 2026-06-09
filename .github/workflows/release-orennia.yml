@@ -71,7 +71,7 @@ jobs:
         run: yarn test-fast
 
       - name: Configure DEV AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ vars.DEV_AWS_ACCOUNT_ID }}:role/dev-github-oidc-role
           role-session-name: deckgl-publish-dev-${{ github.run_id }}
