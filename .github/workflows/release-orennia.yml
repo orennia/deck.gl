@@ -99,12 +99,14 @@ jobs:
 
       - name: Upload tarballs to GitHub Release
         if: github.event_name == 'push' || github.event.inputs.upload_tarballs == 'true'
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
             tag="${GITHUB_REF_NAME}"
-          elif [ -n "${{ github.event.inputs.tag }}" ]; then
-            tag="${{ github.event.inputs.tag }}"
+          elif [ -n "${INPUT_TAG}" ]; then
+            tag="${INPUT_TAG}"
           else
             tag="v$(node -p "require('./modules/core/package.json').version")"
           fi
@@ -113,7 +115,7 @@ jobs:
             gh release create "${tag}" \
               --title "${tag}" \
               --notes "Orennia deck.gl ${tag}" \
-              --target "${GITHUB_SHA}"
+              --target "$(git rev-parse HEAD)"
           fi
           # ponytail: no --clobber. A bad pack is a new tag, not a replaced asset.
           gh release upload "${tag}" tarballs/*.tgz
