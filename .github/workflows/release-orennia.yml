@@ -113,6 +113,7 @@ jobs:
           echo "Uploading tarballs to ${tag}"
           if ! gh release view "${tag}" >/dev/null 2>&1; then
             gh release create "${tag}" \
+              --verify-tag \
               --title "${tag}" \
               --notes "Orennia deck.gl ${tag}" \
               --target "$(git rev-parse HEAD)"
