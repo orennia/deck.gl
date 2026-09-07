@@ -46,11 +46,30 @@ The following properties are used to initialize a `Deck` instance. Any custom va
 
 #### `canvas` (HTMLCanvasElement | String, optional) {#canvas}
 
-The canvas to render into. Can be either a HTMLCanvasElement or the element id. Will be auto-created if not supplied.
+The canvas to render into. It can be either a HTMLCanvasElement or the element id, and will be auto-created if not supplied.
+
+#### `_canvases` ((HTMLCanvasElement | String)[], optional) {#_canvases}
+
+Experimental: presentation canvases for multi-canvas mode. Deck renders into an offscreen default context and presents the result into one `PresentationContext` per canvas entry. String entries are resolved as DOM element ids. Views without an explicit [`canvasId`](./view.md#canvasid) render into the first configured canvas.
+
+This is a separate experimental opt-in so the existing single-canvas [`canvas`](#canvas) property's accepted values and behavior remain unchanged. Applications that do not provide `_canvases` continue to use the existing single-canvas rendering, event handling, and integration paths.
+
+Unlike the other initialization settings in this section, `_canvases` is maintained when updated with `setProps()`. Deck diffs the array and creates, reuses, or destroys presentation targets as needed.
+
+Notes:
+
+* Do not supply `canvas` and `_canvases` together.
+* `_canvases` is not compatible with `gl`.
+* In multi-canvas mode, each canvas gets its own event manager and controller routing.
+* `_canvases: []` keeps the offscreen-backed device path active but does not create any presentation targets.
+
+Use `deck.getCanvasContext(viewId)` to access the presentation context assigned to a view. Canvas identifiers remain an internal presentation-target detail; Deck APIs that associate resources with a view accept its view id.
 
 #### `device` ([Device](https://luma.gl/docs/api-reference/core/device)) {#device}
 
 luma.gl Device used to manage the application's connection with the GPU. Will be auto-created if not supplied.
+
+When a `Device` is supplied, Deck does not destroy it when finalized. While the `Deck` instance is active, Deck owns the `device.props.onResize` callback for the active render canvas context; use `DeckProps.onResize` to observe Deck canvas resizes.
 
 #### `deviceProps` ([DeviceProps](https://luma.gl/docs/api-reference/core/device#deviceprops) | [WebGLDeviceProps](https://luma.gl/docs/api-reference/webgl/#webgldeviceprops)) {#deviceprops}
 
@@ -413,8 +432,8 @@ By default, the deck canvas captures all touch interactions. This prop is useful
 Set options for gesture recognition. May contain the following fields:
 
 - `pan` - an object that is [Pan](https://visgl.github.io/mjolnir.js/docs/api-reference/pan) options. This gesture is used for `onDrag` events, viewport panning (mouse/touch) and rotating (mouse+ctrl). Default `{threshold: 1}`.
-- `pinch` - an object that is [Pinch](https://visgl.github.io/mjolnir.js/docs/api-reference/pinch) options This gesture is used for multi-touch zooming/rotating.
-- `multipan` - an object that is [Pan](https://visgl.github.io/mjolnir.js/docs/api-reference/pan) options. This gesture is used for multi-touch pitching. Default `{threshold: 10, direction: InputDirection.Vertical, pointers: 2}`.
+- `pinch` - an object that is [Pinch](https://visgl.github.io/mjolnir.js/docs/api-reference/pinch) options. This gesture is used for multi-touch zooming/rotating and trackpad pinch. Default `{trackpad: true}`.
+- `multipan` - an object that is [Pan](https://visgl.github.io/mjolnir.js/docs/api-reference/pan) options. This gesture is used for multi-touch and trackpad panning/rotation. Default `{threshold: 10, pointers: 2, trackpad: true}`.
 - `click` - an object that is [Tap](https://visgl.github.io/mjolnir.js/docs/api-reference/tap) options. This gesture is used for the `onClick` event.
 - `dblclick` - an object that is [Tap](https://visgl.github.io/mjolnir.js/docs/api-reference/tap) options. This gesture is used for double-click zooming.
 
@@ -551,6 +570,7 @@ Receives arguments:
 * `size`
   - `width` (number) - the new width of the deck canvas, in client pixels
   - `height` (number) - the new height of the deck canvas, in client pixels
+* `canvasContext` ([CanvasContext](https://luma.gl/docs/api-reference/core/canvas-context), optional) - the luma.gl canvas context that reported the resize
 
 
 #### `onBeforeRender` (Function) {#onbeforerender}
@@ -613,6 +633,26 @@ Returns:
 Notes:
 
 * See the [canvas](#canvas) prop for more information.
+* In multi-canvas mode, this returns the first configured presentation canvas.
+
+#### `getCanvasContext` {#getcanvascontext}
+
+Get the canvas context associated with a view, or the default Deck canvas when no view id is supplied.
+
+```js
+deck.getCanvasContext(viewId)
+```
+
+Parameters:
+
+* `viewId` (string, optional) - the id of the view whose presentation context to retrieve.
+
+Returns:
+
+* A luma.gl `CanvasContext` or `PresentationContext`, or `null` when no matching canvas is available.
+
+In multi-canvas mode, the context is resolved from the view's `canvasId`. This lets view-bound
+components use a view id without depending on presentation-target identifiers.
 
 #### `getViews` {#getviews}
 
@@ -655,6 +695,7 @@ Parameters:
   + `y` (number) - top of the bounding box in pixels
   + `width` (number, optional) - width of the bounding box in pixels
   + `height` (number, optional) - height of the bounding box in pixels
+  + `canvasId` (string, optional) - limit the search to viewports rendered into the given presentation canvas
 
 Returns:
 
@@ -692,13 +733,14 @@ Parameters:
 Get the closest pickable and visible object at the given screen coordinate.
 
 ```ts
-await deck.pickObjectAsync({x, y, radius, layerIds, unproject3D})
+await deck.pickObjectAsync({x, y, canvasId, radius, layerIds, unproject3D})
 ```
 
 Parameters:
 
 * `x` (number) - x position in pixels
 * `y` (number) - y position in pixels
+* `canvasId` (string, optional) - query within the specified presentation canvas in multi-canvas mode
 * `radius` (number, optional) - radius of tolerance in pixels. Default `0`.
 * `layerIds` (string[], optional) - a list of layer ids to query from. If not specified, then all pickable and visible layers are queried.
 * `unproject3D` (boolean, optional) - if `true`, `info.coordinate` will be a 3D point by unprojecting the `x, y` screen coordinates onto the picked geometry. Default `false`.
@@ -713,7 +755,7 @@ Returns:
 Get all pickable and visible objects within a bounding box.
 
 ```ts
-await deck.pickObjectsAsync({x, y, width, height, layerIds, maxObjects})
+await deck.pickObjectsAsync({x, y, width, height, canvasId, layerIds, maxObjects})
 ```
 
 Parameters:
@@ -722,6 +764,7 @@ Parameters:
 * `y` (number) - top of the bouding box in pixels
 * `width` (number, optional) - width of the bouding box in pixels. Default `1`.
 * `height` (number, optional) - height of the bouding box in pixels. Default `1`.
+* `canvasId` (string, optional) - query within the specified presentation canvas in multi-canvas mode
 * `layerIds` (string[], optional) - a list of layer ids to query from. If not specified, then all pickable and visible layers are queried.
 * `maxObjects` (number, optional) - if specified, limits the number of objects that can be returned.
 
@@ -741,13 +784,14 @@ Notes:
 Get the closest pickable and visible object at the given screen coordinate.
 
 ```js
-deck.pickObject({x, y, radius, layerIds, unproject3D})
+deck.pickObject({x, y, canvasId, radius, layerIds, unproject3D})
 ```
 
 Parameters:
 
 * `x` (number) - x position in pixels
 * `y` (number) - y position in pixels
+* `canvasId` (string, optional) - query within the specified presentation canvas in multi-canvas mode
 * `radius` (number, optional) - radius of tolerance in pixels. Default `0`.
 * `layerIds` (string[], optional) - a list of layer ids to query from. If not specified, then all pickable and visible layers are queried.
 * `unproject3D` (boolean, optional) - if `true`, `info.coordinate` will be a 3D point by unprojecting the `x, y` screen coordinates onto the picked geometry. Default `false`.
@@ -764,16 +808,17 @@ Returns:
 Performs deep picking. Finds all close pickable and visible object at the given screen coordinate, even if those objects are occluded by other objects.
 
 ```js
-deck.pickMultipleObjects({x, y, radius, layerIds, depth, unproject3D})
+deck.pickMultipleObjects({x, y, canvasId, radius, layerIds, depth, unproject3D})
 ```
 
 Parameters:
 
 * `x` (number) - x position in pixels
 * `y` (number) - y position in pixels
+* `canvasId` (string, optional) - query within the specified presentation canvas in multi-canvas mode
 * `radius` (number, optional) - radius of tolerance in pixels. Default `0`.
 * `layerIds` (string[], optional) - a list of layer ids to query from. If not specified, then all pickable and visible layers are queried.
-* `depth` - Specifies the max number of objects to return. Default `10`.
+* `depth` - Specifies the max number of objects to return. Default `10`. For layers without explicit picking index buffers, only the default depth of 10 unique objects per layer is guaranteed; higher custom depths may return duplicate results for these layers.
 * `unproject3D` (boolean, optional) - if `true`, `info.coordinate` will be a 3D point by unprojecting the `x, y` screen coordinates onto the picked geometry. Default `false`.
 
 Returns:
@@ -783,6 +828,7 @@ Returns:
 Notes:
 
 * Deep picking is implemented as a sequence of simpler picking operations and can have a performance impact. Should this become a concern, you can use the `depth` parameter to limit the number of matches that can be returned, and thus the maximum number of picking operations.
+* Layers that provide explicit picking index buffers support buffer mutation between picking passes and are not subject to the default-depth unique-object guarantee.
 
 
 #### `pickObjects` {#pickobjects}
@@ -792,7 +838,7 @@ Notes:
 Get all pickable and visible objects within a bounding box.
 
 ```js
-deck.pickObjects({x, y, width, height, layerIds, maxObjects})
+deck.pickObjects({x, y, width, height, canvasId, layerIds, maxObjects})
 ```
 
 Parameters:
@@ -801,6 +847,7 @@ Parameters:
 * `y` (number) - top of the bouding box in pixels
 * `width` (number, optional) - width of the bouding box in pixels. Default `1`.
 * `height` (number, optional) - height of the bouding box in pixels. Default `1`.
+* `canvasId` (string, optional) - query within the specified presentation canvas in multi-canvas mode
 * `layerIds` (string[], optional) - a list of layer ids to query from. If not specified, then all pickable and visible layers are queried.
 * `maxObjects` (number, optional) - if specified, limits the number of objects that can be returned.
 
@@ -828,6 +875,7 @@ A map of various performance statistics for the last 60 frames of rendering. Met
 - `setPropsTime` - time spent setting deck properties
 - `layersCount` - total number of layers created recursively
 - `drawLayersCount` - number of layers drawn to screen in the last render pass
+- `updateLayersCount` - number of times layer update lifecycle methods are run
 - `updateAttributesCount` - number of times attribute buffers are updated
 - `updateAttributesTime` - time spent updating layer attributes
 - `framesRedrawn` - number of times the scene was rendered

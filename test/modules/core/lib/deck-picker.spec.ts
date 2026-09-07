@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
-import {test, expect} from 'vitest';
+import {test, expect, vi} from 'vitest';
 import {LayerManager, MapView} from '@deck.gl/core';
 import {ScatterplotLayer} from '@deck.gl/layers';
 import DeckPicker from '@deck.gl/core/lib/deck-picker';
 import {device} from '@deck.gl/test-utils/vitest';
+import type {CanvasContext} from '@luma.gl/core';
 
 const DEVICE_RECT_TEST_CASES = [
   {
@@ -47,6 +48,38 @@ test('DeckPicker#getPickingRect', () => {
   }
 });
 
+test('DeckPicker#_resizeBuffer uses drawing buffer size', () => {
+  const deckPicker = new DeckPicker(device);
+  const drawingBufferSize: [number, number] = [37, 41];
+  const canvasContext = {
+    getCSSSize: () => [10, 11],
+    getDrawingBufferSize: () => drawingBufferSize
+  } as CanvasContext;
+
+  try {
+    deckPicker._resizeBuffer(canvasContext);
+
+    expect(deckPicker.pickingFBO?.width, 'pickingFBO width follows drawing buffer').toBe(
+      drawingBufferSize[0]
+    );
+    expect(deckPicker.pickingFBO?.height, 'pickingFBO height follows drawing buffer').toBe(
+      drawingBufferSize[1]
+    );
+    expect(
+      deckPicker.depthFBO,
+      'depthFBO is generated when float texture is renderable'
+    ).toBeTruthy();
+    expect(deckPicker.depthFBO?.width, 'depthFBO width follows drawing buffer').toBe(
+      drawingBufferSize[0]
+    );
+    expect(deckPicker.depthFBO?.height, 'depthFBO height follows drawing buffer').toBe(
+      drawingBufferSize[1]
+    );
+  } finally {
+    deckPicker.finalize();
+  }
+});
+
 /* eslint-disable max-statements */
 test('DeckPicker#pick empty', () => {
   const deckPicker = new DeckPicker(device);
@@ -57,6 +90,7 @@ test('DeckPicker#pick empty', () => {
     viewState: {longitude: 0, latitude: 0, zoom: 1}
   });
   const layerManager = new LayerManager(device, {viewport});
+  const drawAndSample = vi.spyOn(deckPicker, '_drawAndSample');
 
   const opts = {
     layers: [],
@@ -95,6 +129,12 @@ test('DeckPicker#pick empty', () => {
   deckPicker.setProps({_pickable: true});
   output = deckPicker.pickObject(opts);
   expect(output.result[0].layer, 'Layer is picked').toBe(layer);
+  expect(
+    drawAndSample,
+    'the active canvas context reaches synchronous picking'
+  ).toHaveBeenCalledWith(
+    expect.objectContaining({canvasContext: device.getDefaultCanvasContext()})
+  );
 
   expect(deckPicker.pickingFBO, 'pickingFBO is generated').toBeTruthy();
 
@@ -112,6 +152,7 @@ test('DeckPicker#pick async empty', async () => {
     viewState: {longitude: 0, latitude: 0, zoom: 1}
   });
   const layerManager = new LayerManager(device, {viewport});
+  const drawAndSampleAsync = vi.spyOn(deckPicker, '_drawAndSampleAsync');
 
   const opts = {
     layers: [],
@@ -141,6 +182,12 @@ test('DeckPicker#pick async empty', async () => {
   deckPicker.setProps({_pickable: true});
   output = await deckPicker.pickObjectAsync(opts);
   expect(output.result[0].layer, 'Layer is picked (async)').toBe(layer);
+  expect(
+    drawAndSampleAsync,
+    'the active canvas context reaches asynchronous picking'
+  ).toHaveBeenCalledWith(
+    expect.objectContaining({canvasContext: device.getDefaultCanvasContext()})
+  );
 
   expect(deckPicker.pickingFBO, 'pickingFBO is generated (async)').toBeTruthy();
 

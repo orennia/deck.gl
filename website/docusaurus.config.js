@@ -9,15 +9,16 @@ import {themes as prismThemes} from 'prism-react-renderer';
 const lightCodeTheme = prismThemes.nightOwlLight;
 const darkCodeTheme = prismThemes.nightOwl;
 
-const webpack = require('webpack');
+const {getSwcLoaderOptions, rspack} = require('@docusaurus/faster');
 const {resolve} = require('path');
+const websiteBaseUrl = process.env.WEBSITE_BASE_URL || '/';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'deck.gl',
   tagline: 'GPU-powered, highly performant large-scale data visualization',
   url: 'https://deck.gl',
-  baseUrl: process.env.STAGING ? '/deck.gl/' : '/',
+  baseUrl: websiteBaseUrl,
   onBrokenLinks: 'throw',
   markdown: {
     hooks: {
@@ -28,6 +29,42 @@ const config = {
   organizationName: 'visgl', // Usually your GitHub org/user name.
   projectName: 'deck.gl', // Usually your repo name.
   trailingSlash: false,
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true
+    },
+    faster: {
+      // Use a custom SWC loader below so styled-components receives stable SSR component IDs.
+      swcJsLoader: false,
+      swcJsMinimizer: true,
+      swcHtmlMinimizer: true,
+      lightningCssMinimizer: true,
+      mdxCrossCompilerCache: true,
+      rspackBundler: true,
+      rspackPersistentCache: true,
+      ssgWorkerThreads: true,
+      gitEagerVcs: true
+    }
+  },
+
+  webpack: {
+    jsLoader(isServer) {
+      const options = getSwcLoaderOptions({isServer, bundlerName: 'rspack'});
+      options.jsc.experimental = {
+        plugins: [
+          [
+            require.resolve('@swc/plugin-styled-components'),
+            {displayName: true, ssr: true}
+          ]
+        ]
+      };
+
+      return {
+        loader: 'builtin:swc-loader',
+        options
+      };
+    }
+  },
 
   presets: [
     [
@@ -69,15 +106,23 @@ const config = {
             '@deck.gl/json': resolve('../modules/json/dist'),
             '@deck.gl/layers': resolve('../modules/layers/dist'),
             '@deck.gl/mapbox': resolve('../modules/mapbox/dist'),
+            '@deck.gl/maplibre': resolve('../modules/maplibre/dist'),
             '@deck.gl/mesh-layers': resolve('../modules/mesh-layers/dist'),
             '@deck.gl/react': resolve('../modules/react/dist'),
             '@deck.gl/widgets': resolve('../modules/widgets/dist'),
             'website-examples': resolve('../examples/website'),
             react: resolve('node_modules/react'),
             'react-dom': resolve('node_modules/react-dom'),
+            // Explicit subpaths must precede the namespace alias, which otherwise bypasses
+            // package exports and resolves them as nonexistent directories.
             '@luma.gl/webgl/constants': resolve(
               '../node_modules/@luma.gl/webgl/dist/constants'
             ),
+            '@luma.gl/gpgpu/webgpu': resolve(
+              '../node_modules/@luma.gl/gpgpu/dist/operations/webgpu'
+            ),
+            '@luma.gl/gpgpu/gpu-data': resolve('../node_modules/@luma.gl/gpgpu/dist/gpu-data'),
+            '@luma.gl/shadertools/wgsl': resolve('../node_modules/@luma.gl/shadertools/dist/wgsl'),
             '@luma.gl': resolve('../node_modules/@luma.gl'),
             '@math.gl': resolve('../node_modules/@math.gl'),
             '@loaders.gl/compression': resolve('node_modules/@loaders.gl/compression'),
@@ -90,13 +135,13 @@ const config = {
           }
         },
         plugins: [
-          new webpack.EnvironmentPlugin([
+          new rspack.EnvironmentPlugin([
             'MapboxAccessToken',
             'GoogleMapsAPIKey',
             'GoogleMapsMapId'
           ]),
           // These modules break server side bundling
-          new webpack.IgnorePlugin({
+          new rspack.IgnorePlugin({
             resourceRegExp: /asciify-image/
           })
         ],
@@ -186,6 +231,10 @@ const config = {
               {
                 label: 'Playground',
                 href: '/playground'
+              },
+              {
+                label: 'Pydeck',
+                href: '/pydeck'
               },
               {
                 label: 'Codepen demos',

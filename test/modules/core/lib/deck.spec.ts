@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) vis.gl contributors
 
-import {test, expect} from 'vitest';
+import {test, expect, vi} from 'vitest';
 import {Deck, log, MapView} from '@deck.gl/core';
 import {ScatterplotLayer} from '@deck.gl/layers';
 import {FullscreenWidget} from '@deck.gl/widgets';
 import {device} from '@deck.gl/test-utils/vitest';
+import type {CanvasContext, CanvasContextProps} from '@luma.gl/core';
 import {sleep} from './async-iterator-test-utils';
 
 function createDeferred<T>() {
@@ -37,6 +38,20 @@ function createPointPickResult(props = {}) {
   };
 }
 
+function createMockCanvasContext(props: Partial<CanvasContext> = {}): CanvasContext {
+  const canvasContext = device.getDefaultCanvasContext();
+  return {
+    canvas: canvasContext.canvas,
+    getCSSSize: canvasContext.getCSSSize.bind(canvasContext),
+    getDrawingBufferSize: canvasContext.getDrawingBufferSize.bind(canvasContext),
+    cssToDeviceRatio: canvasContext.cssToDeviceRatio.bind(canvasContext),
+    cssToDevicePixels: canvasContext.cssToDevicePixels.bind(canvasContext),
+    setProps: () => {},
+    props: canvasContext.props as CanvasContextProps,
+    ...props
+  } as CanvasContext;
+}
+
 async function waitForRender(deck: Deck): Promise<void> {
   await new Promise<void>(resolve => {
     const onAfterRender = deck.props.onAfterRender;
@@ -47,6 +62,14 @@ async function waitForRender(deck: Deck): Promise<void> {
       }
     });
   });
+}
+
+/** Release test-owned WebGL contexts before Chromium evicts the shared test device. */
+function finalizeOwnedDeck(deck: Deck): void {
+  const ownedDevice = deck.device;
+  deck.finalize();
+  ownedDevice?.loseDevice();
+  ownedDevice?.destroy();
 }
 
 const webglTest = device.type === 'webgl' ? test : test.skip;
@@ -116,6 +139,91 @@ test('Deck#constructor', async () => {
   console.log('Deck constructor did not throw');
 });
 
+test('Deck wires mjolnir requireFailure between recognizers', async () => {
+  // Regression guard: deck.gl previously emitted `requestFailure` instead of
+  // `requireFailure`, which mjolnir silently dropped — so pinch/pan/click no
+  // longer waited for their blocking recognizer to fail.
+  await new Promise<void>((resolve, reject) => {
+    const deck = new Deck({
+      device,
+      width: 1,
+      height: 1,
+      viewState: {longitude: 0, latitude: 0, zoom: 0},
+      layers: [],
+      controller: true,
+      onLoad: () => {
+        try {
+          const recognizers = (deck as any).eventManager?.manager?.recognizers ?? [];
+          const requiredFailures = (event: string): string[] =>
+            (recognizers.find(r => r.options.event === event)?.requireFail ?? []).map(
+              (r: any) => r.options.event
+            );
+
+          expect(requiredFailures('pinch'), 'pinch waits for multipan').toContain('multipan');
+          expect(requiredFailures('pan'), 'pan waits for multipan').toContain('multipan');
+          expect(requiredFailures('click'), 'click waits for dblclick').toContain('dblclick');
+
+          const multipan = recognizers.find(r => r.options.event === 'multipan');
+          const pinch = recognizers.find(r => r.options.event === 'pinch');
+          expect(multipan.options.direction, 'multipan accepts movement in any direction').toBe(15);
+          expect(multipan.options.trackpad, 'multipan recognizes trackpad swipes').toBe(true);
+          expect(pinch.options.trackpad, 'pinch recognizes trackpad pinch').toBe(true);
+
+          deck.finalize();
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      }
+    });
+  });
+});
+
+test('Deck#getEventManager resolves the default manager for views', async () => {
+  await new Promise<void>((resolve, reject) => {
+    const deck = new Deck({
+      device,
+      width: 1,
+      height: 1,
+      views: [new MapView({id: 'main'}), new MapView({id: 'overlay', canvasId: 'overlay'})],
+      viewState: {
+        main: {longitude: 0, latitude: 0, zoom: 0},
+        overlay: {longitude: 0, latitude: 0, zoom: 0}
+      },
+      layers: [],
+      onLoad: () => {
+        try {
+          const eventManager = (deck as any).eventManager;
+          const destroyEventManager = vi.spyOn(eventManager, 'destroy');
+          expect(deck.getEventManager()).toBe(eventManager);
+          expect(deck.getEventManager('main')).toBe(eventManager);
+          expect(deck.getEventManager('overlay')).toBe(eventManager);
+          expect(Object.keys((deck as any).eventManagers)).toEqual(['default-canvas']);
+
+          deck.setProps({width: 2});
+          expect(
+            deck.getEventManager(),
+            'ordinary updates preserve the single-canvas manager'
+          ).toBe(eventManager);
+          expect(
+            destroyEventManager,
+            'ordinary updates do not destroy existing listeners'
+          ).not.toHaveBeenCalled();
+
+          deck.finalize();
+          expect(
+            destroyEventManager,
+            'finalization releases the single-canvas manager'
+          ).toHaveBeenCalledTimes(1);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      }
+    });
+  });
+});
+
 test('Deck#abort', async () => {
   const deck = new Deck({
     device,
@@ -132,6 +240,180 @@ test('Deck#abort', async () => {
   await sleep(50);
 
   console.log('Deck initialization aborted');
+});
+
+test('Deck#canvas context resize drives Deck dimensions', async () => {
+  const resizeEvents: Array<{
+    dimensions: {width: number; height: number};
+    canvasContext?: CanvasContext;
+  }> = [];
+  const deck = new Deck({
+    device,
+    width: 1,
+    height: 1,
+    viewState: {longitude: 0, latitude: 0, zoom: 0},
+    layers: [],
+    onResize: (dimensions, canvasContext) => resizeEvents.push({dimensions, canvasContext})
+  });
+
+  await waitForRender(deck);
+
+  const nextSize: [number, number] = [17, 19];
+  const canvasContext = createMockCanvasContext({getCSSSize: () => nextSize});
+
+  try {
+    resizeEvents.length = 0;
+
+    // Call the internal resize hook directly so the test verifies Deck's reaction to luma state.
+    // @ts-expect-error testing private resize hook
+    deck._onCanvasContextResize(canvasContext);
+
+    expect(deck.width, 'Deck width comes from canvas context CSS size').toBe(nextSize[0]);
+    expect(deck.height, 'Deck height comes from canvas context CSS size').toBe(nextSize[1]);
+    expect(resizeEvents[0]?.dimensions, 'Deck onResize fires from canvas context resize').toEqual({
+      width: nextSize[0],
+      height: nextSize[1]
+    });
+    expect(resizeEvents[0]?.canvasContext, 'Deck onResize receives canvas context').toBe(
+      canvasContext
+    );
+    expect(deck.needsRedraw(), 'resize invalidates redraw').toBeTruthy();
+  } finally {
+    deck.finalize();
+  }
+});
+
+webglTest('Deck#attached gl resize syncs canvas context drawing buffer', async () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const gl = canvas.getContext('webgl2');
+  expect(gl, 'WebGL2 context is created').toBeTruthy();
+
+  const resizeEvents: Array<{
+    dimensions: {width: number; height: number};
+    canvasContext?: CanvasContext;
+  }> = [];
+  const deck = new Deck({
+    gl,
+    width: 1,
+    height: 1,
+    viewState: {longitude: 0, latitude: 0, zoom: 0},
+    layers: [],
+    onResize: (dimensions, canvasContext) => resizeEvents.push({dimensions, canvasContext})
+  });
+
+  await waitForRender(deck);
+
+  const canvasContext = deck.device!.getDefaultCanvasContext();
+  const originalSetDrawingBufferSize = canvasContext.setDrawingBufferSize.bind(canvasContext);
+  const calls: Array<[number, number]> = [];
+
+  try {
+    canvasContext.setDrawingBufferSize = (width: number, height: number) => {
+      calls.push([width, height]);
+      originalSetDrawingBufferSize(width, height);
+    };
+    canvas.width = 37;
+    canvas.height = 41;
+    resizeEvents.length = 0;
+
+    deck.device!.props.onResize?.(canvasContext, {oldPixelSize: [1, 1]});
+
+    expect(calls, 'attached gl resize updates drawing buffer').toEqual([[37, 41]]);
+    expect(canvasContext.getDrawingBufferSize(), 'drawing buffer tracks external canvas').toEqual([
+      37, 41
+    ]);
+    expect(resizeEvents, 'Deck onResize only fires when CSS size changes').toEqual([]);
+    expect(deck.needsRedraw(), 'drawing buffer resize invalidates redraw').toBeTruthy();
+  } finally {
+    canvasContext.setDrawingBufferSize = originalSetDrawingBufferSize;
+    deck.finalize();
+  }
+});
+
+test('Deck#useDevicePixels forwards to canvas context', async () => {
+  const deck = new Deck({
+    device,
+    width: 1,
+    height: 1,
+    viewState: {longitude: 0, latitude: 0, zoom: 0},
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  let useDevicePixels: boolean | number | undefined;
+  const canvasContext = createMockCanvasContext({
+    setProps: (props: CanvasContextProps) => {
+      useDevicePixels = props.useDevicePixels;
+    }
+  });
+
+  try {
+    // @ts-expect-error testing private canvas context setter
+    deck._setCanvasContext(canvasContext);
+
+    // Deck.setProps should only forward the preference into luma's canvas context.
+    deck.setProps({useDevicePixels: false});
+    expect(useDevicePixels, 'canvas context useDevicePixels updated').toBe(false);
+
+    // Numeric overrides should flow through unchanged so luma can size the drawing buffer.
+    deck.setProps({useDevicePixels: 2});
+    expect(useDevicePixels, 'numeric DPR override is forwarded').toBe(2);
+  } finally {
+    deck.finalize();
+  }
+});
+
+test('Deck#provided device resize callback drives Deck dimensions', async () => {
+  const originalOnResize = device.props.onResize;
+  let lowerLevelOnResizeCalls = 0;
+  device.props.onResize = () => lowerLevelOnResizeCalls++;
+
+  const resizeEvents: Array<{
+    dimensions: {width: number; height: number};
+    canvasContext?: CanvasContext;
+  }> = [];
+  const deck = new Deck({
+    device,
+    width: 1,
+    height: 1,
+    viewState: {longitude: 0, latitude: 0, zoom: 0},
+    layers: [],
+    onResize: (dimensions, canvasContext) => resizeEvents.push({dimensions, canvasContext})
+  });
+
+  await waitForRender(deck);
+
+  const nextSize: [number, number] = [23, 29];
+  const canvasContext = createMockCanvasContext({getCSSSize: () => nextSize});
+
+  try {
+    // @ts-expect-error testing private canvas context setter
+    deck._setCanvasContext(canvasContext);
+    resizeEvents.length = 0;
+    lowerLevelOnResizeCalls = 0;
+
+    deck.device!.props.onResize?.(canvasContext, {oldPixelSize: [1, 1]});
+
+    expect(deck.width, 'Deck width is refreshed from provided device resize').toBe(nextSize[0]);
+    expect(deck.height, 'Deck height is refreshed from provided device resize').toBe(nextSize[1]);
+    expect(resizeEvents[0]?.dimensions, 'Deck onResize fires from provided device resize').toEqual({
+      width: nextSize[0],
+      height: nextSize[1]
+    });
+    expect(resizeEvents[0]?.canvasContext, 'Deck onResize receives canvas context').toBe(
+      canvasContext
+    );
+    expect(
+      lowerLevelOnResizeCalls,
+      'Deck owns the lower-level luma onResize callback while active'
+    ).toBe(0);
+  } finally {
+    deck.finalize();
+    device.props.onResize = originalOnResize;
+  }
 });
 
 test('Deck#no views', async () => {
@@ -205,6 +487,406 @@ webglTest('Deck#rendering, picking, logging', async () => {
       }
     });
   });
+});
+
+webglTest('Deck#multi-canvas presentation', async () => {
+  const parent = document.createElement('div');
+  document.body.appendChild(parent);
+
+  const eventRootA = document.createElement('div');
+  eventRootA.className = 'deck-events-root';
+  parent.appendChild(eventRootA);
+  const canvasA = document.createElement('canvas');
+  canvasA.id = 'deck-test-canvas-a';
+  canvasA.width = 64;
+  canvasA.height = 64;
+  canvasA.getBoundingClientRect = () => ({left: 10, top: 20}) as DOMRect;
+  eventRootA.appendChild(canvasA);
+
+  const eventRootB = document.createElement('div');
+  eventRootB.className = 'deck-events-root';
+  parent.appendChild(eventRootB);
+  const canvasB = document.createElement('canvas');
+  canvasB.id = 'deck-test-canvas-b';
+  canvasB.width = 32;
+  canvasB.height = 48;
+  parent.getBoundingClientRect = () => ({left: 10, top: 20}) as DOMRect;
+  canvasB.getBoundingClientRect = () => ({left: 310, top: 220}) as DOMRect;
+  eventRootB.appendChild(canvasB);
+
+  const leftWidget = new FullscreenWidget({id: 'left-fullscreen', viewId: 'left'});
+  const rightWidget = new FullscreenWidget({id: 'right-fullscreen', viewId: 'right'});
+
+  const deck = new Deck({
+    parent,
+    width: 64,
+    height: 64,
+    _canvases: [canvasA, canvasB],
+    initialViewState: {
+      left: {longitude: 0, latitude: 0, zoom: 1},
+      right: {longitude: 10, latitude: 10, zoom: 1}
+    },
+    views: [new MapView({id: 'left'}), new MapView({id: 'right', canvasId: 'deck-test-canvas-b'})],
+    layers: [],
+    widgets: [leftWidget, rightWidget]
+  });
+
+  await waitForRender(deck);
+
+  expect(deck.getCanvas()).toBe(canvasA);
+  // @ts-expect-error testing private state
+  expect(Object.keys(deck._canvasManager.targets)).toEqual([
+    'deck-test-canvas-a',
+    'deck-test-canvas-b'
+  ]);
+  // @ts-expect-error testing private state
+  expect(deck.eventManagers['deck-test-canvas-a'].getElement()).toBe(eventRootA);
+  // @ts-expect-error testing private state
+  expect(deck.eventManagers['deck-test-canvas-b'].getElement()).toBe(eventRootB);
+  expect(deck.getEventManager('left')?.getElement()).toBe(eventRootA);
+  expect(deck.getEventManager('right')?.getElement()).toBe(eventRootB);
+  // @ts-expect-error testing private state
+  expect(deck.getCanvasContext('left')).toBe(
+    deck._canvasManager.targets['deck-test-canvas-a'].presentationContext
+  );
+  // @ts-expect-error testing private state
+  expect(deck.getCanvasContext('right')).toBe(
+    deck._canvasManager.targets['deck-test-canvas-b'].presentationContext
+  );
+  expect(deck.getViewports({x: 0, y: 0, canvasId: 'deck-test-canvas-a'}).map(v => v.id)).toEqual([
+    'left'
+  ]);
+  expect(deck.getViewports({x: 0, y: 0, canvasId: 'deck-test-canvas-b'}).map(v => v.id)).toEqual([
+    'right'
+  ]);
+  const rightViewport = deck.getViewports().find(viewport => viewport.id === 'right');
+  expect(rightWidget.widgetManager?.getCanvasBounds(rightViewport)).toEqual({
+    x: 300,
+    y: 200,
+    width: 32,
+    height: 48
+  });
+
+  const leftWidgetContainer = leftWidget.rootElement?.parentElement?.parentElement;
+  const rightWidgetContainer = rightWidget.rootElement?.parentElement?.parentElement;
+  expect(parent.contains(leftWidget.rootElement), 'left widget stays under the shared root').toBe(
+    true
+  );
+  expect(parent.contains(rightWidget.rootElement), 'right widget stays under the shared root').toBe(
+    true
+  );
+  expect(leftWidgetContainer?.style.left, 'left widget uses its canvas offset').toBe('0px');
+  expect(leftWidgetContainer?.style.top, 'left widget uses its canvas offset').toBe('0px');
+  expect(rightWidgetContainer?.style.left, 'right widget uses its canvas offset').toBe('300px');
+  expect(rightWidgetContainer?.style.top, 'right widget uses its canvas offset').toBe('200px');
+  expect(rightWidgetContainer?.style.width, 'right widget uses its viewport width').toBe('32px');
+  expect(rightWidgetContainer?.style.height, 'right widget uses its viewport height').toBe('48px');
+
+  // @ts-expect-error testing private state
+  const eventManagers = deck.eventManagers;
+  const viewports = deck.getViewports();
+  deck.setProps({_canvases: [canvasA, canvasB]});
+  // @ts-expect-error testing private state
+  expect(deck.eventManagers).toBe(eventManagers);
+  expect(deck.getViewports()).toBe(viewports);
+
+  // @ts-expect-error testing private state
+  const rightCanvasContext = deck._canvasManager.targets['deck-test-canvas-b'].presentationContext;
+  const originalGetCSSSize = rightCanvasContext.getCSSSize.bind(rightCanvasContext);
+  rightCanvasContext.getCSSSize = () => [80, 96];
+  deck.device!.props.onResize?.(rightCanvasContext, {oldPixelSize: [32, 48]});
+  expect(deck.width, 'secondary canvas resize preserves the default canvas width').toBe(64);
+  expect(
+    deck.getViewports().find(viewport => viewport.id === 'right')?.width,
+    'secondary canvas resize rebuilds its viewport from the context CSS size'
+  ).toBe(80);
+  rightCanvasContext.getCSSSize = originalGetCSSSize;
+
+  finalizeOwnedDeck(deck);
+  parent.remove();
+});
+
+webglTest('Deck#multi-canvas recreates device-bound targets', async () => {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'deck-test-device-canvas';
+  canvas.width = 64;
+  canvas.height = 64;
+  document.body.appendChild(canvas);
+
+  const deck = new Deck({
+    width: 64,
+    height: 64,
+    _canvases: [canvas],
+    initialViewState: {longitude: 0, latitude: 0, zoom: 1},
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  // @ts-expect-error testing private state
+  const canvasManager = deck._canvasManager;
+  const oldTarget = canvasManager.targets['deck-test-device-canvas'];
+  const destroyPresentationContext = vi.spyOn(oldTarget.presentationContext, 'destroy');
+  const replacementPresentationContext = {
+    destroy: vi.fn()
+  };
+  const replacementDevice = {
+    createPresentationContext: vi.fn(() => replacementPresentationContext)
+  };
+
+  canvasManager.syncCanvasEntries({
+    device: replacementDevice,
+    canvases: [canvas],
+    useDevicePixels: true
+  });
+
+  expect(destroyPresentationContext).toHaveBeenCalledOnce();
+  expect(replacementDevice.createPresentationContext).toHaveBeenCalledOnce();
+  expect(canvasManager.targets['deck-test-device-canvas'].presentationContext).toBe(
+    replacementPresentationContext
+  );
+
+  finalizeOwnedDeck(deck);
+  canvas.remove();
+});
+
+webglTest('Deck#multi-canvas isolates shared event roots', async () => {
+  const eventRoot = document.createElement('div');
+  eventRoot.className = 'deck-events-root';
+  document.body.appendChild(eventRoot);
+
+  const canvasA = document.createElement('canvas');
+  canvasA.id = 'deck-test-shared-event-root-a';
+  canvasA.width = 64;
+  canvasA.height = 64;
+  eventRoot.appendChild(canvasA);
+
+  const canvasB = document.createElement('canvas');
+  canvasB.id = 'deck-test-shared-event-root-b';
+  canvasB.width = 64;
+  canvasB.height = 64;
+  eventRoot.appendChild(canvasB);
+
+  const deck = new Deck({
+    width: 64,
+    height: 64,
+    _canvases: [canvasA, canvasB],
+    initialViewState: {
+      left: {longitude: 0, latitude: 0, zoom: 1},
+      right: {longitude: 0, latitude: 0, zoom: 1}
+    },
+    views: [
+      new MapView({id: 'left', canvasId: canvasA.id}),
+      new MapView({id: 'right', canvasId: canvasB.id})
+    ],
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  expect(deck.getEventManager('left')?.getElement()).toBe(canvasA);
+  expect(deck.getEventManager('right')?.getElement()).toBe(canvasB);
+
+  finalizeOwnedDeck(deck);
+  eventRoot.remove();
+});
+
+test('Deck#multi-canvas configuration', () => {
+  expect(
+    () =>
+      new Deck({
+        canvas: document.createElement('canvas'),
+        _canvases: [],
+        layers: []
+      })
+  ).toThrow();
+});
+
+webglTest('Deck#multi-canvas picking routes by canvas', async () => {
+  const canvasA = document.createElement('canvas');
+  canvasA.id = 'deck-test-pick-canvas-a';
+  canvasA.width = 64;
+  canvasA.height = 64;
+  canvasA.style.width = '64px';
+  canvasA.style.height = '64px';
+  document.body.appendChild(canvasA);
+
+  const canvasB = document.createElement('canvas');
+  canvasB.id = 'deck-test-pick-canvas-b';
+  canvasB.width = 32;
+  canvasB.height = 48;
+  canvasB.style.width = '32px';
+  canvasB.style.height = '48px';
+  document.body.appendChild(canvasB);
+
+  const deck = new Deck({
+    width: 64,
+    height: 64,
+    _canvases: [canvasA, canvasB],
+    initialViewState: {
+      left: {longitude: 0, latitude: 0, zoom: 10},
+      right: {longitude: 10, latitude: 10, zoom: 10}
+    },
+    views: [
+      new MapView({id: 'left', canvasId: 'deck-test-pick-canvas-a'}),
+      new MapView({id: 'right', canvasId: 'deck-test-pick-canvas-b'})
+    ],
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  const syncCalls: any[] = [];
+  const asyncCalls: any[] = [];
+  const rectCalls: any[] = [];
+
+  // @ts-expect-error test override
+  deck.deckPicker.pickObject = opts => {
+    syncCalls.push(opts);
+    return createPointPickResult({
+      layer: {id: opts.canvasId === 'deck-test-pick-canvas-b' ? 'right-layer' : 'left-layer'}
+    });
+  };
+  // @ts-expect-error test override
+  deck.deckPicker.pickObjectAsync = opts => {
+    asyncCalls.push(opts);
+    return Promise.resolve(
+      createPointPickResult({
+        layer: {id: opts.canvasId === 'deck-test-pick-canvas-b' ? 'right-layer' : 'left-layer'}
+      })
+    );
+  };
+  // @ts-expect-error test override
+  deck.deckPicker.pickObjects = opts => {
+    rectCalls.push(opts);
+    return [
+      createPickingInfo({
+        layer: {id: opts.canvasId === 'deck-test-pick-canvas-b' ? 'right-layer' : 'left-layer'}
+      })
+    ];
+  };
+
+  expect(deck.pickObject({x: 32, y: 32})?.layer?.id).toBe('left-layer');
+  expect(syncCalls[0].canvasId).toBe('deck-test-pick-canvas-a');
+  expect(syncCalls[0].viewports.map(viewport => viewport.id)).toEqual(['left']);
+
+  expect(deck.pickObject({x: 16, y: 24, canvasId: 'deck-test-pick-canvas-b'})?.layer?.id).toBe(
+    'right-layer'
+  );
+  expect(syncCalls[1].canvasId).toBe('deck-test-pick-canvas-b');
+  expect(syncCalls[1].viewports.map(viewport => viewport.id)).toEqual(['right']);
+
+  expect(
+    (await deck.pickObjectAsync({x: 16, y: 24, canvasId: 'deck-test-pick-canvas-b'}))?.layer?.id
+  ).toBe('right-layer');
+  expect(asyncCalls[0].canvasId).toBe('deck-test-pick-canvas-b');
+  expect(asyncCalls[0].viewports.map(viewport => viewport.id)).toEqual(['right']);
+
+  expect(
+    deck.pickObjects({x: 16, y: 24, width: 1, height: 1, canvasId: 'deck-test-pick-canvas-b'})[0]
+      ?.layer?.id
+  ).toBe('right-layer');
+  expect(rectCalls[0].canvasId).toBe('deck-test-pick-canvas-b');
+  expect(rectCalls[0].viewports.map(viewport => viewport.id)).toEqual(['right']);
+
+  finalizeOwnedDeck(deck);
+  canvasA.remove();
+  canvasB.remove();
+});
+
+webglTest('Deck#multi-canvas mode cannot be changed', async () => {
+  const deck = new Deck({
+    device,
+    width: 64,
+    height: 64,
+    initialViewState: {longitude: 0, latitude: 0, zoom: 1},
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  expect(() => deck.setProps({_canvases: []})).toThrow();
+
+  deck.finalize();
+});
+
+webglTest('Deck#multi-canvas clears orphaned canvases', async () => {
+  const canvasA = document.createElement('canvas');
+  canvasA.id = 'deck-test-orphan-canvas-a';
+  canvasA.width = 64;
+  canvasA.height = 64;
+  document.body.appendChild(canvasA);
+
+  const canvasB = document.createElement('canvas');
+  canvasB.id = 'deck-test-orphan-canvas-b';
+  canvasB.width = 64;
+  canvasB.height = 64;
+  document.body.appendChild(canvasB);
+
+  const deck = new Deck({
+    width: 64,
+    height: 64,
+    _canvases: [canvasA, canvasB],
+    initialViewState: {
+      left: {longitude: 0, latitude: 0, zoom: 1},
+      right: {longitude: 10, latitude: 10, zoom: 1}
+    },
+    views: [
+      new MapView({id: 'left', canvasId: 'deck-test-orphan-canvas-a'}),
+      new MapView({id: 'right', canvasId: 'deck-test-orphan-canvas-b'})
+    ],
+    layers: []
+  });
+
+  await waitForRender(deck);
+
+  // @ts-expect-error testing private state
+  const targetA = deck._canvasManager.targets['deck-test-orphan-canvas-a'];
+  // @ts-expect-error testing private state
+  const targetB = deck._canvasManager.targets['deck-test-orphan-canvas-b'];
+  const presentCalls = {a: 0, b: 0};
+  const renderCalls: string[][] = [];
+  const originalPresentA = targetA.presentationContext.present.bind(targetA.presentationContext);
+  const originalPresentB = targetB.presentationContext.present.bind(targetB.presentationContext);
+  const originalRenderLayers = deck.deckRenderer.renderLayers.bind(deck.deckRenderer);
+  const beginRenderPass = vi.spyOn(deck.device!, 'beginRenderPass');
+
+  targetA.presentationContext.present = () => {
+    presentCalls.a++;
+    originalPresentA();
+  };
+  targetB.presentationContext.present = () => {
+    presentCalls.b++;
+    originalPresentB();
+  };
+  // @ts-expect-error test override
+  deck.deckRenderer.renderLayers = opts => {
+    renderCalls.push(opts.viewports.map(viewport => viewport.id));
+    originalRenderLayers(opts);
+  };
+
+  deck.setProps({
+    views: [new MapView({id: 'left', canvasId: 'deck-test-orphan-canvas-a'})]
+  });
+  await waitForRender(deck);
+
+  expect(renderCalls).toEqual([['left'], []]);
+  expect(presentCalls).toEqual({a: 1, b: 1});
+  const orphanClearPass = beginRenderPass.mock.calls
+    .map(([renderPass]) => renderPass)
+    .find(
+      renderPass => renderPass.framebuffer === targetB.presentationContext.getCurrentFramebuffer()
+    );
+  expect(orphanClearPass?.framebuffer, 'orphan canvas clears its own framebuffer').toBe(
+    targetB.presentationContext.getCurrentFramebuffer()
+  );
+  expect(orphanClearPass?.clearColor, 'orphan canvas clears stale color').toEqual([0, 0, 0, 0]);
+  expect(orphanClearPass?.clearDepth, 'orphan canvas clears stale depth').toBe(1);
+  beginRenderPass.mockRestore();
+
+  finalizeOwnedDeck(deck);
+  canvasA.remove();
+  canvasB.remove();
 });
 
 test('Deck#async picking', async () => {

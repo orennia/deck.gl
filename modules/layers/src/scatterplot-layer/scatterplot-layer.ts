@@ -8,7 +8,8 @@ import {Model, Geometry} from '@luma.gl/engine';
 import {scatterplotUniforms, ScatterplotProps} from './scatterplot-layer-uniforms';
 import vs from './scatterplot-layer-vertex.glsl';
 import fs from './scatterplot-layer-fragment.glsl';
-import source from './scatterplot-layer.wgsl';
+import {getShaderWGSL} from './scatterplot-layer.wgsl';
+import clipExtension from '../utils/clip-extension';
 
 import type {
   LayerProps,
@@ -176,15 +177,33 @@ export default class ScatterplotLayer<DataT = any, ExtraPropsT extends {} = {}> 
   };
 
   getShaders() {
+    const useRowIndexes = Boolean((this.props.data as any)?.attributes?.rowIndexes);
     return super.getShaders({
       vs,
       fs,
-      source,
-      modules: [project32, color, picking, scatterplotUniforms]
+      source: getShaderWGSL(useRowIndexes),
+      defines: useRowIndexes ? {USE_ROW_INDEXES: true} : {},
+      modules: [
+        project32,
+        color,
+        picking,
+        scatterplotUniforms,
+        ...(this.context.device.type === 'webgpu' ? [clipExtension] : [])
+      ]
     });
   }
 
   initializeState() {
+    const attributes: Record<string, any> = (this.props.data as any)?.attributes?.rowIndexes
+      ? {
+          /** Caller-provided logical picking index per point instance. */
+          rowIndexes: {
+            size: 1,
+            type: 'uint32',
+            noAlloc: true
+          }
+        }
+      : {};
     this.getAttributeManager()!.addInstanced({
       instancePositions: {
         size: 3,
@@ -197,33 +216,39 @@ export default class ScatterplotLayer<DataT = any, ExtraPropsT extends {} = {}> 
         size: 1,
         transition: true,
         accessor: 'getRadius',
-        defaultValue: 1
+        defaultValue: 1,
+        bufferGroup: 'scatterplot-instance-data'
       },
       instanceFillColors: {
         size: this.props.colorFormat.length,
         transition: true,
         type: 'unorm8',
         accessor: 'getFillColor',
-        defaultValue: [0, 0, 0, 255]
+        defaultValue: [0, 0, 0, 255],
+        bufferGroup: 'scatterplot-instance-data'
       },
       instanceLineColors: {
         size: this.props.colorFormat.length,
         transition: true,
         type: 'unorm8',
         accessor: 'getLineColor',
-        defaultValue: [0, 0, 0, 255]
+        defaultValue: [0, 0, 0, 255],
+        bufferGroup: 'scatterplot-instance-data'
       },
       instanceLineWidths: {
         size: 1,
         transition: true,
         accessor: 'getLineWidth',
-        defaultValue: 1
+        defaultValue: 1,
+        bufferGroup: 'scatterplot-instance-data'
       },
       instancePixelOffset: {
         size: 2,
         transition: true,
-        accessor: 'getPixelOffset'
-      }
+        accessor: 'getPixelOffset',
+        bufferGroup: 'scatterplot-instance-data'
+      },
+      ...attributes
     });
   }
 

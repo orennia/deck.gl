@@ -130,6 +130,13 @@ export {
 export {ScenegraphLayer, SimpleMeshLayer} from '@deck.gl/mesh-layers';
 
 //
+// MAPLIBRE INTEGRATION PACKAGE
+//
+
+export {MapLibreOverlay} from '@deck.gl/maplibre';
+export type {MapLibreOverlayProps} from '@deck.gl/maplibre';
+
+//
 // REACT BINDINGS PACKAGE
 //
 
@@ -151,6 +158,7 @@ export {
   // View widgets
   FullscreenWidget,
   _SplitterWidget,
+  buildViewsFromViewLayout,
   // Information widgets
   InfoWidget,
   PopupWidget,
@@ -244,6 +252,9 @@ export type {
   StatsWidgetProps,
   ContextMenuWidgetProps,
   SplitterWidgetProps,
+  SplitterWidgetViewLayout,
+  CompiledDeckViews,
+  ViewLayout,
   TimelineWidgetProps,
   SelectorWidgetProps,
   GimbalWidgetProps,

@@ -9,7 +9,7 @@ import {Model, Geometry} from '@luma.gl/engine';
 import {iconUniforms, IconProps} from './icon-layer-uniforms';
 import vs from './icon-layer-vertex.glsl';
 import fs from './icon-layer-fragment.glsl';
-import {shaderWGSL as source} from './icon-layer.wgsl';
+import {getShaderWGSL} from './icon-layer.wgsl';
 import IconManager from './icon-manager';
 
 import type {
@@ -140,7 +140,14 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
   };
 
   getShaders() {
-    return super.getShaders({vs, fs, source, modules: [project32, color, picking, iconUniforms]});
+    const useRowIndexes = Boolean((this.props.data as any)?.attributes?.rowIndexes);
+    return super.getShaders({
+      vs,
+      fs,
+      source: getShaderWGSL(useRowIndexes),
+      defines: useRowIndexes ? {USE_ROW_INDEXES: true} : {},
+      modules: [project32, color, picking, iconUniforms]
+    });
   }
 
   initializeState() {
@@ -164,11 +171,13 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
       instanceSizes: {
         size: 1,
         transition: true,
+        bufferGroup: 'icon-instance-data',
         accessor: 'getSize',
         defaultValue: 1
       },
       instanceIconDefs: {
         size: 7,
+        bufferGroup: 'icon-instance-data',
         accessor: 'getIcon',
         // eslint-disable-next-line @typescript-eslint/unbound-method
         transform: this.getInstanceIconDef,
@@ -191,19 +200,32 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
         size: this.props.colorFormat.length,
         type: 'unorm8',
         transition: true,
+        bufferGroup: 'icon-instance-data',
         accessor: 'getColor',
         defaultValue: DEFAULT_COLOR
       },
       instanceAngles: {
         size: 1,
         transition: true,
+        bufferGroup: 'icon-instance-data',
         accessor: 'getAngle'
       },
       instancePixelOffset: {
         size: 2,
         transition: true,
+        bufferGroup: 'icon-instance-data',
         accessor: 'getPixelOffset'
-      }
+      },
+      ...((this.props.data as any)?.attributes?.rowIndexes
+        ? {
+            /** Caller-provided logical picking index per icon instance. */
+            rowIndexes: {
+              size: 1,
+              type: 'uint32',
+              noAlloc: true
+            }
+          }
+        : {})
     });
     /* eslint-enable max-len */
   }
@@ -264,12 +286,16 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
   }
 
   draw({uniforms}): void {
+    this._drawModel(this.state.model!);
+  }
+
+  /** Draw one icon model with the current atlas and layer props. */
+  protected _drawModel(model: Model): void {
     const {sizeScale, sizeBasis, sizeMinPixels, sizeMaxPixels, sizeUnits, billboard, alphaCutoff} =
       this.props;
     const {iconManager} = this.state;
     const iconsTexture = iconManager.getTexture();
     if (iconsTexture) {
-      const model = this.state.model!;
       const iconProps: IconProps = {
         iconsTexture,
         iconsTextureDim: [iconsTexture.width, iconsTexture.height],
@@ -287,14 +313,14 @@ export default class IconLayer<DataT = any, ExtraPropsT extends {} = {}> extends
     }
   }
 
-  protected _getModel(): Model {
+  protected _getModel(id = this.props.id): Model {
     // The icon-layer vertex shader uses 2d positions
     // specifed via: in vec2 positions;
     const positions = [-1, -1, 1, -1, -1, 1, 1, 1];
 
     return new Model(this.context.device, {
       ...this.getShaders(),
-      id: this.props.id,
+      id,
       bufferLayout: this.getAttributeManager()!.getBufferLayouts(),
       geometry: new Geometry({
         topology: 'triangle-strip',

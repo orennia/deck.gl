@@ -187,7 +187,7 @@ fn project_mercator_(lnglat: vec2<f32>) -> vec2<f32> {
   let y = clamp(lnglat.y, -89.9, 89.9);
   return vec2<f32>(
     radians(x) + PI,
-    PI + log(tan(PI * 0.25 + radians(y) * 0.5))
+    PI + log(tan_fp32(PI * 0.25 + radians(y) * 0.5))
   ) * WORLD_SCALE;
 }
 
@@ -228,6 +228,12 @@ fn project_position_vec4_f64(position: vec4<f32>, position64Low: vec3<f32>) -> v
         project_globe_(position_world.xyz),
         position_world.w
       );
+    }
+    if (project.coordinateSystem == COORDINATE_SYSTEM_METER_OFFSETS) {
+      let enuMatrix = project_get_orientation_matrix(project.commonOrigin);
+      let metersToCommon = GLOBE_RADIUS / EARTH_RADIUS;
+      let offsetCommon = (enuMatrix * vec3<f32>(-position_world.x, -position_world.y, position_world.z)) * metersToCommon;
+      return vec4<f32>(project.commonOrigin + offsetCommon, position_world.w);
     }
   }
   if (project.projectionMode == PROJECTION_MODE_WEB_MERCATOR_AUTO_OFFSET) {
@@ -274,7 +280,10 @@ fn project_position_vec2_f32(position: vec2<f32>) -> vec2<f32> {
 
 // Transforms a common space position to clip space.
 fn project_common_position_to_clipspace_with_projection(position: vec4<f32>, viewProjectionMatrix: mat4x4<f32>, center: vec4<f32>) -> vec4<f32> {
-  return viewProjectionMatrix * position + center;
+  var clipPosition = viewProjectionMatrix * position + center;
+  // deck.gl projection matrices use WebGL's [-w, w] depth range; WebGPU clips z to [0, w].
+  clipPosition.z = (clipPosition.z + clipPosition.w) * 0.5;
+  return clipPosition;
 }
 
 // Uses the project viewProjectionMatrix and center.
