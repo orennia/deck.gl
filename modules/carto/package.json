@@ -3,7 +3,7 @@
   "description": "CARTO official integration with Deck.gl. Build geospatial applications using CARTO and Deck.gl.",
   "license": "MIT",
   "type": "module",
-  "version": "9.4.0",
+  "version": "9.4.0-or",
   "publishConfig": {
     "access": "public"
   },
@@ -71,11 +71,11 @@
     "quadbin": "^0.4.0"
   },
   "peerDependencies": {
-    "@deck.gl/aggregation-layers": "~9.4.0",
-    "@deck.gl/core": "~9.4.0",
-    "@deck.gl/extensions": "~9.4.0",
-    "@deck.gl/geo-layers": "~9.4.0",
-    "@deck.gl/layers": "~9.4.0",
+    "@deck.gl/aggregation-layers": "9.4.0-or",
+    "@deck.gl/core": "9.4.0-or",
+    "@deck.gl/extensions": "9.4.0-or",
+    "@deck.gl/geo-layers": "9.4.0-or",
+    "@deck.gl/layers": "9.4.0-or",
     "@loaders.gl/core": "^4.4.3",
     "@luma.gl/core": "~9.4.0"
   },

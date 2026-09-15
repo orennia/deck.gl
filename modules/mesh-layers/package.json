@@ -3,7 +3,7 @@
   "description": "deck.gl layers that loads 3D meshes or scene graphs",
   "license": "MIT",
   "type": "module",
-  "version": "9.4.0",
+  "version": "9.4.0-or",
   "publishConfig": {
     "access": "public"
   },
@@ -53,7 +53,7 @@
     "@luma.gl/shadertools": "^9.4.0"
   },
   "peerDependencies": {
-    "@deck.gl/core": "~9.4.0",
+    "@deck.gl/core": "9.4.0-or",
     "@luma.gl/core": "~9.4.0",
     "@luma.gl/engine": "~9.4.0",
     "@luma.gl/gltf": "~9.4.0",

@@ -19,6 +19,14 @@ Ref: http://keepachangelog.com/en/0.3.0/
 
 ## deck.gl v9.4
 
+#### deck.gl [v9.4.0-or] - Sep 15 2026
+
+- Base the Orennia release on upstream deck.gl v9.4.0.
+- Align text collision filtering with rendered label bounds, including multiline text, offsets, rotation, backgrounds, and outlines.
+- Add optional priority-ordered greedy text collision placement and enforce collision group capacity limits.
+- Fix collision priority depth handling across GPUs and add deterministic collision tests.
+- Distribute npm package tarballs as GitHub Release assets, replacing CodeArtifact publishing.
+
 #### deck.gl [v9.4.0] - Sep 5 2026
 
 deck.gl v9.4 brings together a collection of completed improvements focused on performance, stability, and usability. Highlights include:

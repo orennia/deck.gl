@@ -3,7 +3,7 @@
   "description": "deck.gl core layers",
   "license": "MIT",
   "type": "module",
-  "version": "9.4.0",
+  "version": "9.4.0-or",
   "publishConfig": {
     "access": "public"
   },
@@ -57,7 +57,7 @@
     "earcut": "^2.2.4"
   },
   "peerDependencies": {
-    "@deck.gl/core": "~9.4.0",
+    "@deck.gl/core": "9.4.0-or",
     "@loaders.gl/core": "^4.4.3",
     "@luma.gl/core": "~9.4.0",
     "@luma.gl/engine": "~9.4.0"
