@@ -19,6 +19,11 @@ Ref: http://keepachangelog.com/en/0.3.0/
 
 ## deck.gl v9.4
 
+#### deck.gl [v9.4.1-or] - Sep 17 2026
+
+- Fix stale polygon triangles and invalid MVT picking after layer data shrinks by limiting indexed draws to the current triangulation ([#10719](https://github.com/visgl/deck.gl/issues/10719)).
+- Add regression coverage for MVT picking through repeated tile data shrink and growth.
+
 #### deck.gl [v9.4.0-or] - Sep 15 2026
 
 - Base the Orennia release on upstream deck.gl v9.4.0.
